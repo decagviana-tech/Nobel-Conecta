@@ -1,0 +1,17 @@
+{
+  "name": "Nobel Conecta Petrópolis",
+  "short_name": "Nobel Conecta",
+  "description": "Rede social literária da Livraria Nobel Petrópolis.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#eab308",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3308/3308395.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

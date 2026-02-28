@@ -1,0 +1,37 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nobel Conecta - Petrópolis</title>
+    <meta name="description" content="A rede social literária oficial da Nobel Petrópolis. Compartilhe resenhas, textos autorais e participe do clube do livro." />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Nobel Conecta - Petrópolis" />
+    <meta property="og:description" content="A rede social literária oficial da Nobel Petrópolis. Compartilhe resenhas, textos autorais e participe do clube do livro." />
+    <meta property="og:image" content="https://picsum.photos/seed/nobel/1200/630" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Nobel Conecta - Petrópolis" />
+    <meta property="twitter:description" content="A rede social literária oficial da Nobel Petrópolis. Compartilhe resenhas, textos autorais e participe do clube do livro." />
+    <meta property="twitter:image" content="https://picsum.photos/seed/nobel/1200/630" />
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#eab308">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+  </body>
+</html>

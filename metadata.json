@@ -1,0 +1,7 @@
+{
+  "name": "Nobel Conecta",
+  "description": "Rede social literária exclusiva para leitores da Livraria Nobel Petrópolis. Compartilhe resenhas, fotos e conecte-se com outros apaixonados por livros.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
