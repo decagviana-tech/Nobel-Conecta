@@ -114,7 +114,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:h-[320px] w-full">
       
       {post.images && post.images.length > 0 ? (
-        <div className="w-full md:w-[40%] aspect-video md:aspect-square md:h-full overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
+        <div className="w-full md:w-[40%] aspect-[4/5] md:aspect-square md:h-full overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
           <img 
             src={post.images[0]} 
             alt="Livro" 
@@ -137,16 +137,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
         
         <div className="flex items-center justify-between mb-2">
           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-2 group/user">
-            <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-yellow-50 flex items-center justify-center overflow-hidden border border-yellow-100 group-hover/user:border-yellow-400 transition-colors">
+            <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-yellow-50 flex items-center justify-center overflow-hidden border border-yellow-100 group-hover/user:border-yellow-400 transition-colors">
               {post.author?.avatar_url ? (
                 <img src={post.author.avatar_url} alt={post.author.username} className="w-full h-full object-cover" />
               ) : (
-                <UserIcon className="text-yellow-700" size={12} />
+                <UserIcon className="text-yellow-700" size={14} />
               )}
             </div>
             <div>
-              <h4 className="font-black text-gray-900 text-[9px] md:text-[10px] leading-none group-hover/user:text-yellow-600 transition-colors">@{post.author?.username}</h4>
-              <p className="text-[6px] md:text-[7px] text-gray-400 font-bold uppercase mt-0.5">
+              <h4 className="font-black text-gray-900 text-[12px] md:text-[13px] leading-none group-hover/user:text-yellow-600 transition-colors">@{post.author?.username}</h4>
+              <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase mt-0.5">
                 {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: ptBR })}
               </p>
             </div>
@@ -178,19 +178,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
         </div>
 
         <div className="mb-2">
-          <h3 className="text-[11px] md:text-sm font-black text-gray-900 font-serif leading-tight truncate uppercase tracking-tighter">{post.book_title}</h3>
+          <h3 className="text-[14px] md:text-base font-black text-gray-900 font-serif leading-tight truncate uppercase tracking-tighter">{post.book_title}</h3>
           <div className="flex items-center justify-between mt-0.5">
-            <p className="text-[8px] md:text-[9px] text-gray-400 italic truncate shrink-1">por {post.book_author}</p>
+            <p className="text-[11px] md:text-[12px] text-gray-400 italic truncate shrink-1">por {post.book_author}</p>
             <div className="flex shrink-0 ml-2">
               {[...Array(5)].map((_, i) => (
-                <Star key={i} size={8} md:size={9} fill={i < (post.rating || 5) ? "#EAB308" : "none"} className={i < (post.rating || 5) ? "text-yellow-500" : "text-gray-100"} />
+                <Star key={i} size={10} md:size={12} fill={i < (post.rating || 5) ? "#EAB308" : "none"} className={i < (post.rating || 5) ? "text-yellow-500" : "text-gray-100"} />
               ))}
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto mb-2 pr-1 scrollbar-hide min-h-[40px]">
-          <p className="text-gray-700 text-[10px] md:text-[11px] leading-relaxed italic border-l-2 border-yellow-100 pl-2 md:pl-3">
+          <p className="text-gray-700 text-[13px] md:text-[14px] leading-relaxed italic border-l-2 border-yellow-100 pl-2 md:pl-3">
             "{post.content}"
           </p>
         </div>
@@ -198,47 +198,47 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
         <div className="pt-2 md:pt-3 border-t border-gray-50 mt-auto">
           <div className="flex items-center gap-4 md:gap-6">
             <button onClick={handleLike} className={`flex items-center gap-1 transition-colors ${liked ? 'text-red-500' : 'text-gray-400'}`}>
-              <Heart size={16} md:size={18} fill={liked ? "currentColor" : "none"} strokeWidth={liked ? 0 : 2} />
-              <span className="text-[9px] md:text-[10px] font-black">{likesCount}</span>
+              <Heart size={18} md:size={20} fill={liked ? "currentColor" : "none"} strokeWidth={liked ? 0 : 2} />
+              <span className="text-[11px] md:text-[12px] font-black">{likesCount}</span>
             </button>
             <button 
               onClick={() => setShowComments(!showComments)}
               className={`flex items-center gap-1 transition-colors ${showComments ? 'text-black' : 'text-gray-400'}`}
             >
-              <MessageCircle size={16} md:size={18} />
-              <span className="text-[9px] md:text-[10px] font-black">{comments.length || post.comments_count || 0}</span>
-              {showComments ? <ChevronUp size={10} md:size={12} /> : <ChevronDown size={10} md:size={12} />}
+              <MessageCircle size={18} md:size={20} />
+              <span className="text-[11px] md:text-[12px] font-black">{comments.length || post.comments_count || 0}</span>
+              {showComments ? <ChevronUp size={12} md:size={14} /> : <ChevronDown size={12} md:size={14} />}
             </button>
             <button 
               onClick={handleShare}
               className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors ml-auto"
               title="Compartilhar"
             >
-              <Share2 size={16} md:size={18} />
-              <span className="text-[9px] md:text-[10px] font-black">Compartilhar</span>
+              <Share2 size={18} md:size={20} />
+              <span className="text-[11px] md:text-[12px] font-black">Compartilhar</span>
             </button>
           </div>
 
           {showComments && (
             <div className="mt-2 pt-2 border-t border-gray-50 animate-in slide-in-from-top-2 duration-300">
-              <div className="max-h-20 md:max-h-24 overflow-y-auto space-y-1.5 mb-2 scrollbar-hide">
+              <div className="max-h-24 md:max-h-32 overflow-y-auto space-y-1.5 mb-2 scrollbar-hide">
                 {comments.length > 0 ? comments.map(c => (
                   <div key={c.id} className="flex gap-1.5 items-start">
-                    <span className="text-[8px] md:text-[9px] font-black text-black shrink-0">@{c.author?.username}:</span>
-                    <span className="text-[9px] md:text-[10px] text-gray-700 flex-1 leading-tight">{c.content}</span>
+                    <span className="text-[10px] md:text-[11px] font-black text-black shrink-0">@{c.author?.username}:</span>
+                    <span className="text-[11px] md:text-[12px] text-gray-700 flex-1 leading-tight">{c.content}</span>
                   </div>
                 )) : (
-                  <p className="text-[7px] md:text-[8px] text-gray-300 font-bold uppercase tracking-widest text-center py-1.5">Sem comentários ainda</p>
+                  <p className="text-[9px] md:text-[10px] text-gray-300 font-bold uppercase tracking-widest text-center py-1.5">Sem comentários ainda</p>
                 )}
               </div>
               <form onSubmit={handleAddComment} className="flex gap-1">
                 <input 
-                  className="flex-1 bg-white border border-gray-300 text-[10px] text-black px-2 py-1 rounded-lg outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-400" 
+                  className="flex-1 bg-white border border-gray-300 text-[12px] text-black px-2 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-400" 
                   placeholder="Comentar..." 
                   value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                 />
-                <button type="submit" className="p-1 bg-black text-yellow-400 rounded-lg hover:scale-105 transition-transform shadow-md"><Send size={10} /></button>
+                <button type="submit" className="p-1.5 bg-black text-yellow-400 rounded-lg hover:scale-105 transition-transform shadow-md"><Send size={12} /></button>
               </form>
             </div>
           )}

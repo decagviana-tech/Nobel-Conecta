@@ -27,9 +27,9 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
         }`}
       >
         <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'bg-yellow-400 shadow-md' : ''}`}>
-          <Icon size={18} strokeWidth={isActive ? 3 : 2} className={isActive ? 'text-black' : 'text-gray-400'} />
+          <Icon size={20} strokeWidth={isActive ? 3 : 2} className={isActive ? 'text-black' : 'text-gray-400'} />
         </div>
-        <span className={`text-[7px] mt-1 font-black uppercase tracking-tighter ${isActive ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
+        <span className={`text-[9px] mt-1 font-black uppercase tracking-tighter ${isActive ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
       </Link>
     );
   };

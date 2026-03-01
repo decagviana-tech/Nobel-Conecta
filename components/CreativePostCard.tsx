@@ -120,8 +120,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             )}
           </div>
           <div>
-            <p className="font-black text-gray-900 group-hover:text-yellow-600 transition-colors">@{post.author?.username}</p>
-            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-[0.2em]">
+            <p className="font-black text-gray-900 text-sm md:text-base group-hover:text-yellow-600 transition-colors">@{post.author?.username}</p>
+            <p className="text-[11px] md:text-[12px] text-gray-400 uppercase font-bold tracking-[0.2em]">
               {post.title || 'Escrito Livre'} • {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: ptBR })}
             </p>
           </div>
@@ -176,8 +176,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
                     )}
                   </div>
                   <div className="flex-1">
-                    <span className="text-[10px] font-black text-black">@{c.author?.username}</span>
-                    <p className="text-xs text-gray-700 leading-tight mt-0.5">{c.content}</p>
+                    <span className="text-[11px] md:text-[12px] font-black text-black">@{c.author?.username}</span>
+                    <p className="text-[12px] md:text-xs text-gray-700 leading-tight mt-0.5">{c.content}</p>
                   </div>
                 </div>
               )) : (
