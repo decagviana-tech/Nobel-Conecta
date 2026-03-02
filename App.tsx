@@ -24,28 +24,29 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const isMounted = React.useRef(true);
 
   useEffect(() => {
-    let mounted = true;
+    isMounted.current = true;
     const timeout = setTimeout(() => {
-      if (mounted) setLoading(false);
+      if (isMounted.current) setLoading(false);
     }, 5000);
 
     const checkSession = async () => {
       try {
         if (!isSupabaseConfigured) {
           const savedDemoUser = localStorage.getItem('nobel_demo_session');
-          if (savedDemoUser && mounted) {
+          if (savedDemoUser && isMounted.current) {
             const user = JSON.parse(savedDemoUser);
             setSession({ user: { id: user.id } });
             setProfile(user);
           }
-          if (mounted) setLoading(false);
+          if (isMounted.current) setLoading(false);
           return;
         }
 
         const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (mounted) {
+        if (isMounted.current) {
           setSession(currentSession);
           if (currentSession) {
             fetchProfile(currentSession.user.id);
@@ -55,7 +56,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error("Session check error:", err);
-        if (mounted) setLoading(false);
+        if (isMounted.current) setLoading(false);
       } finally {
         clearTimeout(timeout);
       }
@@ -64,7 +65,7 @@ const App: React.FC = () => {
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!mounted) return;
+      if (!isMounted.current) return;
       setSession(currentSession);
       if (currentSession) {
         fetchProfile(currentSession.user.id);
@@ -75,7 +76,7 @@ const App: React.FC = () => {
     });
 
     const handleProfileUpdate = (event: any) => {
-      if (mounted) {
+      if (isMounted.current) {
         setProfile(prev => prev ? { ...prev, ...event.detail } : null);
       }
     };
@@ -83,7 +84,7 @@ const App: React.FC = () => {
     window.addEventListener('nobel_profile_updated', handleProfileUpdate);
 
     return () => {
-      mounted = false;
+      isMounted.current = false;
       subscription.unsubscribe();
       clearTimeout(timeout);
       window.removeEventListener('nobel_profile_updated', handleProfileUpdate);
@@ -99,11 +100,35 @@ const App: React.FC = () => {
         .single();
 
       if (error) {
-        console.warn("Perfil não encontrado, pode ter sido deletado.");
-        // Se o usuário existe no Auth mas não no Profiles, algo está errado.
-        // Não resetamos tudo imediatamente para dar chance ao usuário de criar o perfil,
-        // mas paramos o loading.
-        setLoading(false);
+        console.warn("Perfil não encontrado, tentando criar automaticamente...");
+        
+        // Tenta recuperar dados do metadata do usuário (caso tenha vindo do registro)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && isMounted.current) {
+          const metadata = user.user_metadata;
+          const newProfile = {
+            id: user.id,
+            full_name: metadata?.full_name || user.email?.split('@')[0] || 'Novo Leitor',
+            username: metadata?.username || user.email?.split('@')[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'leitor' + Math.random().toString(36).substr(2, 4),
+            role: user.email === 'nobel.petropolis@gmail.com' ? 'admin' : 'user',
+            points: 0
+          };
+
+          const { data: createdProfile, error: createError } = await supabase
+            .from('profiles')
+            .upsert(newProfile)
+            .select()
+            .single();
+
+          if (!createError && isMounted.current) {
+            setProfile(createdProfile);
+          } else {
+            console.error("Erro ao criar perfil automático:", createError);
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
         return;
       }
       setProfile(data);

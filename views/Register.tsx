@@ -84,7 +84,11 @@ const Register: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Erro no registro:', err);
-      setError(err.message || 'Erro ao criar conta. Verifique os dados e tente novamente.');
+      if (err.message?.includes('already registered')) {
+        setError('Este e-mail já está cadastrado. Por favor, faça login.');
+      } else {
+        setError(err.message || 'Erro ao criar conta. Verifique os dados e tente novamente.');
+      }
       setLoading(false);
     }
   };

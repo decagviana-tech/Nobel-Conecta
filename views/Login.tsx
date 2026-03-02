@@ -56,15 +56,19 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
         
         // Busca o perfil, mas não deixa o erro de perfil travar o login
         try {
-          const { data: profileData } = await supabase
+          const { data: profileData, error: pError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
             .single();
           
-          if (setProfile) setProfile(profileData);
+          if (!pError && profileData) {
+            if (setProfile) setProfile(profileData);
+          } else {
+            console.warn('Perfil não encontrado no login, App.tsx cuidará da criação automática.');
+          }
         } catch (pErr) {
-          console.warn('Perfil não carregado imediatamente:', pErr);
+          console.warn('Erro ao carregar perfil no login:', pErr);
         }
         
         // Pequena pausa apenas para mostrar a animação de sucesso
