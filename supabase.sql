@@ -131,6 +131,14 @@ CREATE POLICY "Admins and organizers can delete book clubs" ON public.book_clubs
 CREATE POLICY "Users can view their own messages" ON public.messages FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 CREATE POLICY "Users can send messages" ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
+CREATE POLICY "Likes are viewable by everyone" ON public.likes FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own likes" ON public.likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own likes" ON public.likes FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Comments are viewable by everyone" ON public.comments FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own comments" ON public.comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own comments" ON public.comments FOR DELETE USING (auth.uid() = user_id);
+
 -- 7. Giveaways table
 CREATE TABLE public.giveaways (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -166,6 +174,10 @@ CREATE POLICY "Users can participate in giveaways" ON public.giveaway_participan
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Anyone can insert notifications" ON public.notifications FOR INSERT WITH CHECK (true);
+
+-- Enable Realtime for notifications
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 
 -- 10. Rewards table
 CREATE TABLE public.rewards (

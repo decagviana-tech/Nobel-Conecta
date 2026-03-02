@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Star, MessageCircle, Heart, Trash2, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Share2 } from 'lucide-react';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { createNotification } from '../src/services/notificationService';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
@@ -74,6 +75,21 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
         } else {
           await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
+          
+          // Ganho de pontos por curtir
+          const newPoints = (currentProfile.points || 0) + 1;
+          await supabase.from('profiles').update({ points: newPoints }).eq('id', currentProfile.id);
+
+          // Notificar o autor do post
+          if (post.user_id !== currentProfile.id) {
+            await createNotification(
+              post.user_id,
+              'like',
+              'Nova curtida!',
+              `@${currentProfile.username} curtiu sua resenha de "${post.book_title}".`,
+              `/?search=${encodeURIComponent(post.book_title || '')}`
+            );
+          }
         }
       } catch (err) { console.error(err); }
     }
@@ -103,6 +119,21 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
         user_id: currentProfile.id,
         content: newComment
       });
+
+      // Ganho de pontos por comentar
+      const newPoints = (currentProfile.points || 0) + 2;
+      await supabase.from('profiles').update({ points: newPoints }).eq('id', currentProfile.id);
+
+      // Notificar o autor do post
+      if (post.user_id !== currentProfile.id) {
+        await createNotification(
+          post.user_id,
+          'comment',
+          'Novo comentário!',
+          `@${currentProfile.username} comentou na sua resenha: "${newComment.substring(0, 30)}${newComment.length > 30 ? '...' : ''}"`,
+          `/?search=${encodeURIComponent(post.book_title || '')}`
+        );
+      }
     }
     setNewComment('');
   };
@@ -111,13 +142,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   const isClubThought = post.type === 'club_thought';
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:h-[320px] w-full">
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:h-[320px] w-full relative">
       
       {post.images && post.images.length > 0 ? (
         <div className="w-full md:w-[40%] aspect-[4/5] md:aspect-square md:h-full overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
           <img 
-            src={post.images[0]} 
+            src={post.images[0].startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.images[0])}&default=${encodeURIComponent(post.images[0])}` : post.images[0]} 
             alt="Livro" 
+            crossOrigin="anonymous"
             className="w-full h-full object-cover transition-transform duration-1000 group-hover/img:scale-110" 
           />
           {isClubThought && (
@@ -139,7 +171,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-2 group/user">
             <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-yellow-50 flex items-center justify-center overflow-hidden border border-yellow-100 group-hover/user:border-yellow-400 transition-colors">
               {post.author?.avatar_url ? (
-                <img src={post.author.avatar_url} alt={post.author.username} className="w-full h-full object-cover" />
+                <img 
+                  src={post.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.author.avatar_url)}&default=${encodeURIComponent(post.author.avatar_url)}` : post.author.avatar_url} 
+                  alt={post.author.username} 
+                  crossOrigin="anonymous" 
+                  className="w-full h-full object-cover" 
+                />
               ) : (
                 <UserIcon className="text-yellow-700" size={14} />
               )}
@@ -209,14 +246,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
               <span className="text-[11px] md:text-[12px] font-black">{comments.length || post.comments_count || 0}</span>
               {showComments ? <ChevronUp size={12} md:size={14} /> : <ChevronDown size={12} md:size={14} />}
             </button>
-            <button 
-              onClick={handleShare}
-              className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors ml-auto"
-              title="Compartilhar"
-            >
-              <Share2 size={18} md:size={20} />
-              <span className="text-[11px] md:text-[12px] font-black">Compartilhar</span>
-            </button>
+            <div className="flex items-center gap-2 ml-auto">
+              <button 
+                onClick={handleShare}
+                className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors"
+                title="Compartilhar Link"
+              >
+                <Share2 size={18} md:size={20} />
+                <span className="text-[11px] md:text-[12px] font-black">Link</span>
+              </button>
+            </div>
           </div>
 
           {showComments && (

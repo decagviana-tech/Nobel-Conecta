@@ -124,9 +124,14 @@ const App: React.FC = () => {
     <HashRouter>
       <div className="min-h-screen bg-white">
         {isDemo && (
-          <div className="fixed top-0 left-0 right-0 bg-yellow-400 text-black text-[10px] font-black uppercase h-10 z-[10002] tracking-[0.1em] shadow-md flex items-center justify-center gap-3 border-b-2 border-black/10">
-            <span className="animate-pulse text-red-600 font-serif text-lg">●</span> 
-            MODO DE DEMONSTRAÇÃO: NOBEL CONECTA PETRÓPOLIS
+          <div className="fixed top-0 left-0 right-0 bg-yellow-400 text-black text-[10px] font-black uppercase h-12 z-[10002] tracking-[0.1em] shadow-md flex flex-col items-center justify-center border-b-2 border-black/10 px-4 text-center leading-tight">
+            <div className="flex items-center gap-2">
+              <span className="animate-pulse text-red-600 font-serif text-lg">●</span> 
+              MODO DE DEMONSTRAÇÃO: DADOS SALVOS APENAS NESTE DISPOSITIVO
+            </div>
+            <div className="text-[8px] opacity-70 normal-case font-bold">
+              Conecte o Supabase para sincronizar entre celular e computador.
+            </div>
           </div>
         )}
         

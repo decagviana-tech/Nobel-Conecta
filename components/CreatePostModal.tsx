@@ -96,7 +96,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
           .update({ points: newPoints })
           .eq('id', userId);
         
-        alert('Parabéns! Você ganhou +15 pontos Nobel por sua resenha.');
+        alert('Parabéns! Você ganhou +10 pontos Nobel por sua resenha.');
       } catch (pointsErr) {
         console.warn('Erro ao atualizar pontos:', pointsErr);
       }
