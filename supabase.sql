@@ -115,6 +115,7 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 -- Policies
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Posts are viewable by everyone" ON public.posts FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own posts" ON public.posts FOR INSERT WITH CHECK (auth.uid() = user_id);
@@ -174,7 +175,7 @@ CREATE POLICY "Users can participate in giveaways" ON public.giveaway_participan
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Anyone can insert notifications" ON public.notifications FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can insert notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Enable Realtime for notifications
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;

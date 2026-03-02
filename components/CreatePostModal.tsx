@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Camera, Star, Loader2, PenTool, BookOpen } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
+import { awardPoints } from '../src/services/pointsService';
 import { Post, Profile } from '../types';
 
 interface CreatePostModalProps {
@@ -90,12 +91,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
 
       // Ganho de pontos por resenha
       try {
-        const newPoints = (currentProfile.points || 0) + 10;
-        await supabase
-          .from('profiles')
-          .update({ points: newPoints })
-          .eq('id', userId);
-        
+        await awardPoints(userId, 'review', currentProfile);
         alert('Parabéns! Você ganhou +10 pontos Nobel por sua resenha.');
       } catch (pointsErr) {
         console.warn('Erro ao atualizar pontos:', pointsErr);

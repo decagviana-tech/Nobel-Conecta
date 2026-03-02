@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, BookOpen, Send, User as UserIcon, MessageSquare, ShieldCheck, Trophy, Trash2, Camera, Loader2, X } from 'lucide-react';
 import { supabase, isSupabaseConfigured, uploadFile } from '../supabase';
+import { awardPoints } from '../src/services/pointsService';
 import { BookClub, Profile, Post } from '../types';
 import PostCard from '../components/PostCard';
 
@@ -117,6 +118,13 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
         .eq('id', club.id);
 
       if (error) throw error;
+      
+      // Ganho de pontos por entrar no clube
+      if (!isMember) {
+        await awardPoints(profile.id, 'join_club', profile);
+        alert('Bem-vindo ao clube! Você ganhou +5 pontos Nobel.');
+      }
+
       setClub({ ...club, member_ids: newMembers });
       setIsMember(!isMember);
     } catch (err) {
@@ -155,6 +163,10 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
       try {
         const { data, error } = await supabase.from('posts').insert(thoughtData).select('*, author:profiles(*)').single();
         if (error) throw error;
+        
+        // Ganho de pontos por análise de clube
+        await awardPoints(profile.id, 'club_thought', profile);
+
         if (data) {
           setPosts([data, ...posts]);
         } else {

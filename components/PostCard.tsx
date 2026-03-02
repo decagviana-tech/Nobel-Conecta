@@ -4,6 +4,7 @@ import { Star, MessageCircle, Heart, Trash2, User as UserIcon, Send, ChevronDown
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
+import { awardPoints } from '../src/services/pointsService';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
@@ -77,8 +78,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
           
           // Ganho de pontos por curtir
-          const newPoints = (currentProfile.points || 0) + 1;
-          await supabase.from('profiles').update({ points: newPoints }).eq('id', currentProfile.id);
+          await awardPoints(currentProfile.id, 'like', currentProfile);
 
           // Notificar o autor do post
           if (post.user_id !== currentProfile.id) {
@@ -121,8 +121,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
       });
 
       // Ganho de pontos por comentar
-      const newPoints = (currentProfile.points || 0) + 2;
-      await supabase.from('profiles').update({ points: newPoints }).eq('id', currentProfile.id);
+      await awardPoints(currentProfile.id, 'comment', currentProfile);
 
       // Notificar o autor do post
       if (post.user_id !== currentProfile.id) {

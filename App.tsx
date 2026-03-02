@@ -74,10 +74,19 @@ const App: React.FC = () => {
       }
     });
 
+    const handleProfileUpdate = (event: any) => {
+      if (mounted) {
+        setProfile(prev => prev ? { ...prev, ...event.detail } : null);
+      }
+    };
+
+    window.addEventListener('nobel_profile_updated', handleProfileUpdate);
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
       clearTimeout(timeout);
+      window.removeEventListener('nobel_profile_updated', handleProfileUpdate);
     };
   }, []);
 

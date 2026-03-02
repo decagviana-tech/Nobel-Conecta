@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from '../supabase';
 import { Profile, Message } from '../types';
 import { Send, ArrowLeft, User, Loader2, MessageSquare, Search } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { createNotification } from '../src/services/notificationService';
 
 interface MessagesViewProps {
   profile: Profile | null;
@@ -159,6 +160,15 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
       setMessages(prev => [...prev, data]);
       setNewMessage('');
       fetchConversations();
+
+      // Notificar o destinatário
+      await createNotification(
+        contactId,
+        'message',
+        'Nova mensagem!',
+        `@${profile.username} te enviou uma mensagem: "${newMessage.substring(0, 30)}${newMessage.length > 30 ? '...' : ''}"`,
+        `/messages/${profile.id}`
+      );
     } catch (err) {
       alert('Erro ao enviar mensagem.');
     } finally {

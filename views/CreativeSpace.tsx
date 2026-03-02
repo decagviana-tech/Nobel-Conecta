@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PenTool, Plus } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { awardPoints } from '../src/services/pointsService';
 import { Post, Profile } from '../types';
 import CreatePostModal from '../components/CreatePostModal';
 import CreativePostCard from '../components/CreativePostCard';
@@ -57,15 +58,10 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
       await fetchPosts();
       
       // Ganho de pontos real se estiver no Supabase
-      if (profile && isSupabaseConfigured) {
-        const newPoints = (profile.points || 0) + 10;
+      if (profile) {
         try {
-          await supabase
-            .from('profiles')
-            .update({ points: newPoints })
-            .eq('id', profile.id);
-          
-          alert('Parabéns! Você ganhou +20 pontos Nobel por compartilhar seu texto autoral.');
+          await awardPoints(profile.id, 'creative', profile);
+          alert('Parabéns! Você ganhou +10 pontos Nobel por compartilhar seu texto autoral.');
         } catch (err) {
           console.error('Erro ao atualizar pontos:', err);
         }

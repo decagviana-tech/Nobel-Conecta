@@ -151,18 +151,18 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       <div className="grid grid-cols-3 gap-3 mb-8">
         <Link to="/shop" className="bg-yellow-400 text-black p-4 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all border-2 border-white">
           <ShoppingBag size={20} strokeWidth={2.5} />
-          <span className="text-[8px] font-black uppercase tracking-widest">Vitrine</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Vitrine</span>
         </Link>
         <Link to="/creative" className="bg-black text-yellow-400 p-4 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all border-2 border-white">
           <PenTool size={20} strokeWidth={2.5} />
-          <span className="text-[8px] font-black uppercase tracking-widest">Mural</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Mural</span>
         </Link>
         <button 
           onClick={() => setShowCreateModal(true)}
           className="bg-gray-50 text-gray-900 p-4 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 shadow-sm hover:scale-105 active:scale-95 transition-all border-2 border-white"
         >
           <Plus size={20} strokeWidth={2.5} />
-          <span className="text-[8px] font-black uppercase tracking-widest">Resenha</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Resenha</span>
         </button>
       </div>
 
@@ -170,15 +170,15 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       <div className="flex border-b border-gray-100 mb-6 bg-white rounded-t-2xl overflow-hidden">
         <button 
           onClick={() => setActiveTab('explorar')}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'explorar' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
+          className={`flex-1 flex items-center justify-center gap-2 py-4 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'explorar' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
         >
-          <Compass size={14} /> Explorar
+          <Compass size={16} /> Explorar
         </button>
         <button 
           onClick={() => setActiveTab('seguindo')}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'seguindo' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
+          className={`flex-1 flex items-center justify-center gap-2 py-4 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'seguindo' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
         >
-          <Users size={14} /> Seguindo
+          <Users size={16} /> Seguindo
         </button>
       </div>
 
@@ -204,7 +204,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         ) : (
           <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">
             <Users className="mx-auto text-gray-100 mb-3" size={40} />
-            <p className="text-gray-400 font-bold uppercase text-[9px] tracking-[0.2em]">
+            <p className="text-gray-400 font-bold uppercase text-[11px] tracking-[0.2em]">
               {activeTab === 'seguindo' ? 'Siga alguém para ver atualizações aqui' : 'Nenhuma resenha encontrada'}
             </p>
           </div>

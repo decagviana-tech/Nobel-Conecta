@@ -10,7 +10,17 @@ export const isSupabaseConfigured = !isPlaceHolder(SUPABASE_URL) && !isPlaceHold
 
 export const supabase = createClient(
   isSupabaseConfigured ? SUPABASE_URL : 'https://vazio.supabase.co', 
-  isSupabaseConfigured ? SUPABASE_KEY : 'mock-key'
+  isSupabaseConfigured ? SUPABASE_KEY : 'mock-key',
+  {
+    auth: {
+      persistSession: isSupabaseConfigured,
+      autoRefreshToken: isSupabaseConfigured,
+      detectSessionInUrl: isSupabaseConfigured,
+      storageKey: isSupabaseConfigured ? undefined : 'nobel-demo-auth-token',
+      // Disable lock manager in demo mode to avoid "lock:sb-vazio-auth-token" timeout
+      ...(isSupabaseConfigured ? {} : { flowType: 'implicit' })
+    }
+  }
 );
 
 export async function uploadFile(bucket: string, file: File): Promise<string> {

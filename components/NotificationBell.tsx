@@ -18,7 +18,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
   useEffect(() => {
     if (profile) {
       fetchNotifications();
-      requestNotificationPermission();
+      
+      // Request permission only if not already determined
+      if ('Notification' in window && window.Notification.permission === 'default') {
+        requestNotificationPermission();
+      }
       
       if (isSupabaseConfigured) {
         const channel = supabase

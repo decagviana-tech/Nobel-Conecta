@@ -402,6 +402,39 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         </div>
       </div>
 
+      {/* Tabela de Pontuação */}
+      <div className="bg-white rounded-[2rem] p-6 mb-8 border border-gray-100 shadow-sm">
+        <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2 text-gray-400">
+          <Coins size={14} className="text-yellow-500" /> Como ganhar pontos?
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Resenha</p>
+            <p className="text-sm font-black text-black">+10 pts</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Mural</p>
+            <p className="text-sm font-black text-black">+10 pts</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Clube</p>
+            <p className="text-sm font-black text-black">+10 pts</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Comentar</p>
+            <p className="text-sm font-black text-black">+2 pts</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Curtir</p>
+            <p className="text-sm font-black text-black">+1 pt</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Sorteio</p>
+            <p className="text-sm font-black text-black">+5 pts</p>
+          </div>
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl flex items-start gap-4">

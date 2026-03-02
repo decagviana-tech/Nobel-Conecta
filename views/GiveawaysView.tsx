@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
+import { awardPoints } from '../src/services/pointsService';
 import { Profile, Giveaway } from '../types';
 
 interface GiveawaysViewProps {
@@ -101,8 +102,12 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
         else throw error;
       } else {
         setParticipating(prev => [...prev, giveawayId]);
+        
+        // Ganho de pontos por participar do sorteio
+        await awardPoints(profile.id, 'giveaway', profile);
+        
         fetchGiveaways(); // Update count
-        alert('Boa sorte! Você entrou no sorteio.');
+        alert('Boa sorte! Você entrou no sorteio e ganhou +5 pontos Nobel.');
       }
     } catch (err) {
       alert('Erro ao participar.');
