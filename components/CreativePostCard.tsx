@@ -107,6 +107,9 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
       try {
         if (wasLiked) {
           await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
+          
+          // Deduct points when unliking to prevent accumulation
+          await awardPoints(currentProfile.id, 'like', currentProfile, -1);
         } else {
           // Check if already liked to prevent duplicates
           const { data: existingLike } = await supabase

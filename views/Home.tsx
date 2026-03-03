@@ -26,7 +26,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
   useEffect(() => {
     fetchPosts();
     loadFollowing();
-  }, []);
+  }, [profile?.id]);
 
   const loadFollowing = () => {
     const saved = localStorage.getItem(FOLLOW_KEY);

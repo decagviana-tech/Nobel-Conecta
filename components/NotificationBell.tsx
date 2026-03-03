@@ -28,32 +28,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
         const channel = supabase
           .channel(`notifications:${profile.id}`)
           .on('postgres_changes', { 
-            event: 'INSERT', 
+            event: '*', 
             schema: 'public', 
             table: 'notifications',
             filter: `user_id=eq.${profile.id}`
-          }, (payload) => {
-            const newNotif = payload.new as AppNotification;
-            setNotifications(prev => [newNotif, ...prev]);
-            setUnreadCount(prev => prev + 1);
-            
-            // Play a subtle sound or show a toast if needed
-            if ('Notification' in window && window.Notification.permission === 'granted') {
-              new window.Notification(newNotif.title, { body: newNotif.content });
-            }
-          })
-          .on('postgres_changes', {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${profile.id}`
-          }, (payload) => {
-            const updatedNotif = payload.new as AppNotification;
-            setNotifications(prev => {
-              const newList = prev.map(n => n.id === updatedNotif.id ? updatedNotif : n);
-              setUnreadCount(newList.filter(n => !n.read).length);
-              return newList;
-            });
+          }, () => {
+            fetchNotifications();
           })
           .subscribe();
 

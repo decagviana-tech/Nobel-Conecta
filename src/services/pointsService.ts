@@ -25,11 +25,11 @@ const ACTION_LABELS: Record<PointsAction, string> = {
   join_club: 'por entrar no clube'
 };
 
-export const awardPoints = async (userId: string, action: PointsAction, currentProfile: Profile | null) => {
+export const awardPoints = async (userId: string, action: PointsAction, currentProfile: Profile | null, amountOverride?: number) => {
   if (!userId || !currentProfile) return;
 
-  const pointsToAdd = POINTS_MAP[action];
-  const newPoints = (currentProfile.points || 0) + pointsToAdd;
+  const pointsToAdd = amountOverride !== undefined ? amountOverride : POINTS_MAP[action];
+  const newPoints = Math.max(0, (currentProfile.points || 0) + pointsToAdd);
 
   if (isSupabaseConfigured) {
     try {
@@ -41,14 +41,16 @@ export const awardPoints = async (userId: string, action: PointsAction, currentP
 
       if (error) throw error;
 
-      // Create notification for points earned
-      await createNotification(
-        userId,
-        'system',
-        '✨ Pontos Nobel!',
-        `Você ganhou +${pointsToAdd} pontos ${ACTION_LABELS[action]}. Seu novo saldo é ${newPoints} pts.`,
-        '/rewards'
-      );
+      // Create notification for points earned (only if positive)
+      if (pointsToAdd > 0) {
+        await createNotification(
+          userId,
+          'system',
+          '✨ Pontos Nobel!',
+          `Você ganhou +${pointsToAdd} pontos ${ACTION_LABELS[action]}. Seu novo saldo é ${newPoints} pts.`,
+          '/rewards'
+        );
+      }
 
       // Dispatch custom event to refresh profile in App.tsx
       window.dispatchEvent(new CustomEvent('nobel_profile_updated', { detail: { points: newPoints } }));

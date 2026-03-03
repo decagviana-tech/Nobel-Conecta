@@ -133,6 +133,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
       try {
         if (wasLiked) {
           await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
+          
+          // Deduct points when unliking to prevent accumulation
+          await awardPoints(currentProfile.id, 'like', currentProfile, -1);
         } else {
           // Check if already liked to prevent duplicates
           const { data: existingLike } = await supabase
@@ -222,10 +225,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   const isClubThought = post.type === 'club_thought';
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:h-[320px] w-full relative">
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row w-full relative">
       
       {post.images && post.images.length > 0 ? (
-        <div className="w-full md:w-[40%] aspect-[4/5] md:aspect-square md:h-full overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
+        <div className="w-full md:w-[40%] aspect-[4/5] md:aspect-square overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
           <img 
             src={post.images[0].startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.images[0])}&default=${encodeURIComponent(post.images[0])}` : post.images[0]} 
             alt="Livro" 
@@ -239,7 +242,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           )}
         </div>
       ) : isClubThought ? (
-        <div className="w-full md:w-[25%] py-4 md:py-0 md:h-full bg-yellow-50 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-0 px-4 md:px-6 border-b md:border-b-0 md:border-r border-yellow-100 shrink-0">
+        <div className="w-full md:w-[25%] py-4 md:py-0 bg-yellow-50 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-0 px-4 md:px-6 border-b md:border-b-0 md:border-r border-yellow-100 shrink-0">
           <BookOpen className="text-yellow-600" size={24} />
           <span className="text-[7px] md:text-[8px] font-black text-yellow-800 uppercase tracking-widest text-center">Análise do Clube</span>
         </div>

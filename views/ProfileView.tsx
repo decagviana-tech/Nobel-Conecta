@@ -30,7 +30,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
       fetchData(id);
       checkFollowingStatus(id);
     }
-  }, [id]);
+  }, [id, currentUserId]);
 
   const checkFollowingStatus = (targetId: string) => {
     const saved = localStorage.getItem(FOLLOW_KEY);

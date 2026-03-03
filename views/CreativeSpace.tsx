@@ -24,7 +24,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
 
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [profile?.id]);
 
   const fetchPosts = async () => {
     if (!isSupabaseConfigured) {
