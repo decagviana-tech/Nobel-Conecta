@@ -13,6 +13,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,8 +74,10 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
       .limit(20);
 
     if (data) {
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.read).length);
+      // Filter out notifications that were recently deleted locally
+      const filteredData = data.filter(n => !deletedIds.has(n.id));
+      setNotifications(filteredData);
+      setUnreadCount(filteredData.filter(n => !n.read).length);
     }
   };
 
@@ -111,18 +114,28 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
   const deleteNotification = async (id: string) => {
     if (!isSupabaseConfigured) return;
     
+    // Add to deleted tracking to prevent reappearing
+    setDeletedIds(prev => new Set(prev).add(id));
+    
     // Optimistic update
     setNotifications(prev => prev.filter(n => n.id !== id));
     
     const { error } = await supabase.from('notifications').delete().eq('id', id);
     if (error) {
       console.error('Erro ao excluir notificação:', error);
+      // Remove from deleted tracking if it failed
+      setDeletedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       fetchNotifications();
     } else {
       // Recalculate unread count
       setNotifications(current => {
-        setUnreadCount(current.filter(n => !n.read).length);
-        return current;
+        const filtered = current.filter(n => n.id !== id);
+        setUnreadCount(filtered.filter(n => !n.read).length);
+        return filtered;
       });
     }
   };

@@ -46,7 +46,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
     setLiked(post.user_has_liked || false);
     setLikesCount(post.likes_count || 0);
     setCommentsCount(post.comments_count || 0);
-  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count]);
+  }, [post.id]); // Only re-initialize when post ID changes
 
   useEffect(() => {
     if (isSupabaseConfigured && post.id) {
@@ -120,7 +120,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             .maybeSingle();
 
           if (!existingLike) {
-            await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
+            const { error: insertError } = await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
+            if (insertError) throw insertError;
             
             // Ganho de pontos por curtir
             await awardPoints(currentProfile.id, 'like', currentProfile);
@@ -167,29 +168,43 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
     };
 
     const key = `comments_${post.id}`;
+    const previousComments = [...comments];
     const updated = [...comments, commentObj];
     setComments(updated);
     localStorage.setItem(key, JSON.stringify(updated));
+    setCommentsCount(prev => prev + 1);
 
     if (isSupabaseConfigured) {
-      await supabase.from('comments').insert({
-        post_id: post.id,
-        user_id: currentProfile.id,
-        content: newComment
-      });
+      try {
+        const { error: insertError } = await supabase.from('comments').insert({
+          post_id: post.id,
+          user_id: currentProfile.id,
+          content: newComment
+        });
 
-      // Ganho de pontos por comentar
-      await awardPoints(currentProfile.id, 'comment', currentProfile);
+        if (insertError) throw insertError;
 
-      // Notificar o autor do post
-      if (post.user_id !== currentProfile.id) {
-        await createNotification(
-          post.user_id,
-          'comment',
-          'Novo comentário!',
-          `@${currentProfile.username} comentou no seu texto: "${newComment.substring(0, 30)}${newComment.length > 30 ? '...' : ''}"`,
-          `/#/creative?id=${post.id}`
-        );
+        // Ganho de pontos por comentar
+        await awardPoints(currentProfile.id, 'comment', currentProfile);
+
+        // Notificar o autor do post
+        if (post.user_id !== currentProfile.id) {
+          await createNotification(
+            post.user_id,
+            'comment',
+            'Novo comentário!',
+            `@${currentProfile.username} comentou no seu texto: "${newComment.substring(0, 30)}${newComment.length > 30 ? '...' : ''}"`,
+            `/#/creative?id=${post.id}`
+          );
+        }
+      } catch (err) {
+        console.error('Erro ao inserir comentário:', err);
+        // Revert local state on error
+        setComments(previousComments);
+        setCommentsCount(prev => Math.max(0, prev - 1));
+        localStorage.setItem(key, JSON.stringify(previousComments));
+        alert('Erro ao enviar comentário. Tente novamente.');
+        return;
       }
     }
     setNewComment('');
