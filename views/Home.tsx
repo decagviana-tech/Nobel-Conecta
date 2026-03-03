@@ -79,7 +79,8 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       setPosts(data.map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
-        comments_count: p.comments?.[0]?.count || 0
+        comments_count: p.comments?.[0]?.count || 0,
+        user_has_liked: p.likes?.some((l: any) => l.user_id === profile?.id)
       })));
     } catch (err) {
       setLoading(false);

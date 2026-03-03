@@ -8,11 +8,12 @@ import PostCard from '../components/PostCard';
 
 interface ProfileViewProps {
   currentUserId: string;
+  currentProfile: Profile | null;
 }
 
 const FOLLOW_KEY = 'nobel_conecta_following';
 
-const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile }) => {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -100,7 +101,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId }) => {
       setPosts(postsRes.data?.map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
-        comments_count: p.comments?.[0]?.count || 0
+        comments_count: p.comments?.[0]?.count || 0,
+        user_has_liked: p.likes?.some((l: any) => l.user_id === currentUserId)
       })) || []);
     } catch (err) {
       console.error('Error fetching profile data:', err);
@@ -362,7 +364,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId }) => {
         <h3 className="font-black text-xl text-gray-900 font-serif italic border-b border-gray-100 pb-4">Linha do Tempo Literária</h3>
         {posts.length > 0 ? (
           <div className="space-y-6">
-            {posts.map(post => <PostCard key={post.id} post={post} currentProfile={profile} onDelete={handleDeletePost} />)}
+            {posts.map(post => <PostCard key={post.id} post={post} currentProfile={currentProfile} onDelete={handleDeletePost} />)}
           </div>
         ) : (
           <div className="text-center py-24 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">

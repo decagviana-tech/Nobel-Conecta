@@ -42,6 +42,19 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
               new window.Notification(newNotif.title, { body: newNotif.content });
             }
           })
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${profile.id}`
+          }, (payload) => {
+            const updatedNotif = payload.new as AppNotification;
+            setNotifications(prev => {
+              const newList = prev.map(n => n.id === updatedNotif.id ? updatedNotif : n);
+              setUnreadCount(newList.filter(n => !n.read).length);
+              return newList;
+            });
+          })
           .subscribe();
 
         return () => {
@@ -87,16 +100,51 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
 
   const markAsRead = async (id: string) => {
     if (!isSupabaseConfigured) return;
-    await supabase.from('notifications').update({ read: true }).eq('id', id);
+    
+    // Optimistic update
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     setUnreadCount(prev => Math.max(0, prev - 1));
+
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+    if (error) {
+      console.error('Erro ao marcar como lida:', error);
+      // Revert on error
+      fetchNotifications();
+    }
   };
 
   const markAllAsRead = async () => {
     if (!profile || !isSupabaseConfigured) return;
-    await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false);
+    
+    // Optimistic update
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
+
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false);
+    if (error) {
+      console.error('Erro ao marcar todas como lidas:', error);
+      // Revert on error
+      fetchNotifications();
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    if (!isSupabaseConfigured) return;
+    
+    // Optimistic update
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (error) {
+      console.error('Erro ao excluir notificação:', error);
+      fetchNotifications();
+    } else {
+      // Recalculate unread count
+      setNotifications(current => {
+        setUnreadCount(current.filter(n => !n.read).length);
+        return current;
+      });
+    }
   };
 
   const getIcon = (type: string) => {
@@ -165,6 +213,17 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
                           <Check size={14} strokeWidth={3} />
                         </button>
                       )}
+                      <button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteNotification(notif.id);
+                        }}
+                        className="p-1.5 hover:bg-red-100 rounded-lg text-red-400 relative z-10 transition-colors"
+                        title="Excluir notificação"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{notif.content}</p>
                     <p className="text-[8px] text-gray-300 font-bold uppercase mt-2">{new Date(notif.created_at).toLocaleDateString()}</p>

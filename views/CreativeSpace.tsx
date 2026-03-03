@@ -48,7 +48,8 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
       setPosts(data?.map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
-        comments_count: p.comments?.[0]?.count || 0
+        comments_count: p.comments?.[0]?.count || 0,
+        user_has_liked: p.likes?.some((l: any) => l.user_id === profile?.id)
       })) || []);
     } catch (err) {
       console.error('Error fetching creative posts:', err);
@@ -60,16 +61,6 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
   const handlePostCreated = async (newPost?: Post) => {
     if (newPost) {
       await fetchPosts();
-      
-      // Ganho de pontos real se estiver no Supabase
-      if (profile) {
-        try {
-          await awardPoints(profile.id, 'creative', profile);
-          alert('Parabéns! Você ganhou +10 pontos Nobel por compartilhar seu texto autoral.');
-        } catch (err) {
-          console.error('Erro ao atualizar pontos:', err);
-        }
-      }
     } else {
       await fetchPosts();
     }

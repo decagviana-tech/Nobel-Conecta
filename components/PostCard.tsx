@@ -23,6 +23,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
 
+  const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
+
   const isAdmin = currentProfile?.role === 'admin' || 
                   currentProfile?.username === 'nobel_oficial' || 
                   currentProfile?.username === 'nobelpetro';
@@ -43,8 +45,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   }, [showComments, post.id]);
 
   useEffect(() => {
+    setLiked(post.user_has_liked || false);
+    setLikesCount(post.likes_count || 0);
+    setCommentsCount(post.comments_count || 0);
+  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count]);
+
+  useEffect(() => {
     if (isSupabaseConfigured && post.id) {
-      const channel = supabase
+      const likesChannel = supabase
         .channel(`post_likes:${post.id}`)
         .on('postgres_changes', { 
           event: '*', 
@@ -52,20 +60,39 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           table: 'likes',
           filter: `post_id=eq.${post.id}`
         }, async () => {
-          // Re-fetch likes count for this post
-          const { count } = await supabase
+          const { count, error } = await supabase
             .from('likes')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
           
-          if (count !== null) {
+          if (!error && count !== null) {
             setLikesCount(count);
           }
         })
         .subscribe();
 
+      const commentsChannel = supabase
+        .channel(`post_comments:${post.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'comments',
+          filter: `post_id=eq.${post.id}`
+        }, async () => {
+          const { count, error } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+          
+          if (!error && count !== null) {
+            setCommentsCount(count);
+          }
+        })
+        .subscribe();
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(likesChannel);
+        supabase.removeChannel(commentsChannel);
       };
     }
   }, [post.id]);
@@ -296,7 +323,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
               className={`flex items-center gap-1 transition-colors ${showComments ? 'text-black' : 'text-gray-400'}`}
             >
               <MessageCircle size={18} md:size={20} />
-              <span className="text-[11px] md:text-[12px] font-black">{comments.length || post.comments_count || 0}</span>
+              <span className="text-[11px] md:text-[12px] font-black">{commentsCount}</span>
               {showComments ? <ChevronUp size={12} md:size={14} /> : <ChevronDown size={12} md:size={14} />}
             </button>
             <div className="flex items-center gap-2 ml-auto">

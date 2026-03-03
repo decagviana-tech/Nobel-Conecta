@@ -89,10 +89,12 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         throw new Error(`Erro ao salvar no banco: ${error.message}`);
       }
 
-      // Ganho de pontos por resenha
+      // Ganho de pontos
       try {
-        await awardPoints(userId, 'review', currentProfile);
-        alert('Parabéns! Você ganhou +10 pontos Nobel por sua resenha.');
+        const actionType = postType === 'creative' ? 'creative' : 'review';
+        await awardPoints(userId, actionType, currentProfile);
+        const label = postType === 'creative' ? 'seu texto autoral' : 'sua resenha';
+        alert(`Parabéns! Você ganhou +10 pontos Nobel por ${label}.`);
       } catch (pointsErr) {
         console.warn('Erro ao atualizar pontos:', pointsErr);
       }

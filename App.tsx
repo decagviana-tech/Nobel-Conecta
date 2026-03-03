@@ -185,7 +185,7 @@ const App: React.FC = () => {
                   <Route path="/" element={session ? <Home profile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/login" element={!session ? <Login setSession={setSession} setProfile={setProfile} /> : <Navigate to="/" />} />
                   <Route path="/register" element={!session ? <Register /> : <Navigate to="/" />} />
-                  <Route path="/profile/:id" element={session ? <ProfileView currentUserId={session?.user?.id} /> : <Navigate to="/login" />} />
+                  <Route path="/profile/:id" element={session ? <ProfileView currentUserId={session?.user?.id} currentProfile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/shop" element={session ? <Shop profile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/events" element={session ? <Events profile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/creative" element={session ? <CreativeSpace profile={profile} /> : <Navigate to="/login" />} />
