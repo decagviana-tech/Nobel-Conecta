@@ -88,7 +88,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId }) => {
     try {
       const [pRes, postsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('posts').select('*, author:profiles(*)').eq('user_id', userId).order('created_at', { ascending: false })
+        supabase.from('posts').select('*, author:profiles(*), likes(user_id), comments(count)').eq('user_id', userId).order('created_at', { ascending: false })
       ]);
 
       if (pRes.error) {
@@ -97,7 +97,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId }) => {
         setProfile(pRes.data);
         setEditForm(pRes.data);
       }
-      setPosts(postsRes.data || []);
+      setPosts(postsRes.data?.map((p: any) => ({
+        ...p,
+        likes_count: p.likes?.length || 0,
+        comments_count: p.comments?.[0]?.count || 0
+      })) || []);
     } catch (err) {
       console.error('Error fetching profile data:', err);
     } finally {

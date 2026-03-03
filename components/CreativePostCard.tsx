@@ -19,6 +19,7 @@ interface CreativePostCardProps {
 const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfile, onDelete, isAdmin }) => {
   const [liked, setLiked] = useState(post.user_has_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+  const [isLiking, setIsLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -39,33 +40,86 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
     }
   }, [showComments, post.id]);
 
+  useEffect(() => {
+    if (isSupabaseConfigured && post.id) {
+      const channel = supabase
+        .channel(`creative_likes:${post.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'likes',
+          filter: `post_id=eq.${post.id}`
+        }, async () => {
+          // Re-fetch likes count for this post
+          const { count } = await supabase
+            .from('likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+          
+          if (count !== null) {
+            setLikesCount(count);
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [post.id]);
+
   const handleLike = async () => {
-    if (!currentProfile) return;
-    setLiked(!liked);
-    setLikesCount(prev => liked ? prev - 1 : prev + 1);
+    if (!currentProfile || isLiking) return;
+    
+    setIsLiking(true);
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikesCount(prev => wasLiked ? prev - 1 : prev + 1);
     
     if (isSupabaseConfigured) {
       try {
-        if (liked) {
+        if (wasLiked) {
           await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
         } else {
-          await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
-          
-          // Ganho de pontos por curtir
-          await awardPoints(currentProfile.id, 'like', currentProfile);
+          // Check if already liked to prevent duplicates
+          const { data: existingLike } = await supabase
+            .from('likes')
+            .select('id')
+            .eq('user_id', currentProfile.id)
+            .eq('post_id', post.id)
+            .maybeSingle();
 
-          // Notificar o autor do post
-          if (post.user_id !== currentProfile.id) {
-            await createNotification(
-              post.user_id,
-              'like',
-              'Nova curtida!',
-              `@${currentProfile.username} curtiu seu texto: "${post.title || 'Sem título'}".`,
-              `/#/creative?id=${post.id}`
-            );
+          if (!existingLike) {
+            await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
+            
+            // Ganho de pontos por curtir
+            await awardPoints(currentProfile.id, 'like', currentProfile);
+
+            // Notificar o autor do post
+            if (post.user_id !== currentProfile.id) {
+              await createNotification(
+                post.user_id,
+                'like',
+                'Nova curtida!',
+                `@${currentProfile.username} curtiu seu texto: "${post.title || 'Sem título'}".`,
+                `/#/creative?id=${post.id}`
+              );
+            }
+          } else {
+            // If already liked, revert UI state to liked
+            setLiked(true);
           }
         }
-      } catch (err) { console.error(err); }
+      } catch (err) { 
+        console.error(err);
+        // Revert on error
+        setLiked(wasLiked);
+        setLikesCount(prev => wasLiked ? prev + 1 : prev - 1);
+      } finally {
+        setIsLiking(false);
+      }
+    } else {
+      setIsLiking(false);
     }
   };
 

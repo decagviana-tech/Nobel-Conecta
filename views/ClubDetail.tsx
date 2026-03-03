@@ -78,12 +78,16 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
       // Fetch posts for this club
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('*, author:profiles(*)')
+        .select('*, author:profiles(*), likes(user_id), comments(count)')
         .eq('club_id', id)
         .order('created_at', { ascending: false });
 
       if (postsError) throw postsError;
-      setPosts(postsData || []);
+      setPosts(postsData?.map((p: any) => ({
+        ...p,
+        likes_count: p.likes?.length || 0,
+        comments_count: p.comments?.[0]?.count || 0
+      })) || []);
     } catch (err) {
       console.error('Error fetching club detail:', err);
     }

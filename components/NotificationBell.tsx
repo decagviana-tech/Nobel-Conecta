@@ -124,7 +124,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white rounded-[2rem] shadow-2xl border border-gray-100 z-[20000] overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right">
+        <div className="absolute right-0 md:right-auto md:left-0 mt-3 w-80 md:w-96 bg-white rounded-[2rem] shadow-2xl border border-gray-100 z-[20000] overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right md:origin-top-left">
           <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
             <h3 className="font-black text-xs uppercase tracking-widest text-gray-900">Notificações</h3>
             {unreadCount > 0 && (
@@ -154,10 +154,15 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
                       </p>
                       {!notif.read && (
                         <button 
-                          onClick={() => markAsRead(notif.id)}
-                          className="p-1 hover:bg-yellow-100 rounded-lg text-yellow-600"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            markAsRead(notif.id);
+                          }}
+                          className="p-1.5 hover:bg-yellow-100 rounded-lg text-yellow-600 relative z-10 transition-colors"
+                          title="Marcar como lida"
                         >
-                          <Check size={12} strokeWidth={3} />
+                          <Check size={14} strokeWidth={3} />
                         </button>
                       )}
                     </div>

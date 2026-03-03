@@ -82,6 +82,13 @@ CREATE TABLE public.giveaways (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE public.giveaways ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Giveaways are viewable by everyone" ON public.giveaways FOR SELECT USING (true);
+CREATE POLICY "Admins can manage giveaways" ON public.giveaways FOR ALL 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
 -- 8. Giveaway Participants table
 CREATE TABLE public.giveaway_participants (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -90,6 +97,11 @@ CREATE TABLE public.giveaway_participants (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(giveaway_id, user_id)
 );
+
+ALTER TABLE public.giveaway_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Giveaway participation is viewable by everyone" ON public.giveaway_participants FOR SELECT USING (true);
+CREATE POLICY "Users can participate in giveaways" ON public.giveaway_participants FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- 9. Notifications table
 CREATE TABLE public.notifications (
@@ -103,7 +115,7 @@ CREATE TABLE public.notifications (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable RLS
+-- Enable RLS for other tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.likes ENABLE ROW LEVEL SECURITY;
@@ -112,7 +124,7 @@ ALTER TABLE public.book_clubs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
--- Policies
+-- Policies for other tables
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
@@ -139,39 +151,6 @@ CREATE POLICY "Users can delete their own likes" ON public.likes FOR DELETE USIN
 CREATE POLICY "Comments are viewable by everyone" ON public.comments FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own comments" ON public.comments FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own comments" ON public.comments FOR DELETE USING (auth.uid() = user_id);
-
--- 7. Giveaways table
-CREATE TABLE public.giveaways (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  book_image_url TEXT NOT NULL,
-  end_date DATE NOT NULL,
-  winner_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-ALTER TABLE public.giveaways ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Giveaways are viewable by everyone" ON public.giveaways FOR SELECT USING (true);
-CREATE POLICY "Admins can manage giveaways" ON public.giveaways FOR ALL 
-USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
-WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
-
--- 8. Giveaway Participants table
-CREATE TABLE public.giveaway_participants (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  giveaway_id UUID REFERENCES public.giveaways(id) ON DELETE CASCADE NOT NULL,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(giveaway_id, user_id)
-);
-
-ALTER TABLE public.giveaway_participants ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Giveaway participation is viewable by everyone" ON public.giveaway_participants FOR SELECT USING (true);
-CREATE POLICY "Users can participate in giveaways" ON public.giveaway_participants FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
@@ -210,13 +189,30 @@ CREATE TABLE public.redemptions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 12. Shop Books table
+CREATE TABLE public.shop_books (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  author TEXT NOT NULL,
+  price TEXT NOT NULL,
+  cover_url TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 ALTER TABLE public.redemptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shop_books ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own redemptions" ON public.redemptions FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create redemptions" ON public.redemptions FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Admins can update redemptions" ON public.redemptions FOR UPDATE USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
+
+CREATE POLICY "Shop books are viewable by everyone" ON public.shop_books FOR SELECT USING (true);
+CREATE POLICY "Admins can manage shop books" ON public.shop_books FOR ALL 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- Storage setup (Requires manual bucket creation: 'avatars', 'posts', 'rewards', 'giveaways')
 -- You can run this in the SQL Editor to create buckets:

@@ -65,7 +65,7 @@ const Register: React.FC = () => {
               id: authData.user.id,
               full_name: formData.fullName,
               username: formData.username.toLowerCase().replace(/\s/g, ''),
-              role: formData.email === 'nobel.petropolis@gmail.com' ? 'admin' : 'user'
+              role: (formData.email === 'nobel.petropolis@gmail.com' || formData.email === 'decagviana@gmail.com') ? 'admin' : 'user'
             }, { onConflict: 'id' });
         } catch (pErr) {
           console.warn('Aviso no perfil (pode ter sido criado pelo trigger):', pErr);

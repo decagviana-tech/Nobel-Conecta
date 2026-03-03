@@ -50,6 +50,7 @@ export interface Book {
   price: string;
   cover_url: string;
   description: string;
+  created_at?: string;
 }
 
 export interface LibraryEvent {
