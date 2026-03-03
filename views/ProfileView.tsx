@@ -89,7 +89,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     try {
       const [pRes, postsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('posts').select('*, author:profiles(*), likes(user_id), comments(count)').eq('user_id', userId).order('created_at', { ascending: false })
+        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).order('created_at', { ascending: false })
       ]);
 
       if (pRes.error) {
@@ -102,7 +102,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
         ...p,
         likes_count: p.likes?.length || 0,
         comments_count: p.comments?.[0]?.count || 0,
-        user_has_liked: p.likes?.some((l: any) => l.user_id === currentUserId)
+        user_has_liked: currentUserId ? p.likes?.some((l: any) => l.user_id === currentUserId) : false
       })) || []);
     } catch (err) {
       console.error('Error fetching profile data:', err);

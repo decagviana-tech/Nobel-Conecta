@@ -45,10 +45,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   }, [showComments, post.id]);
 
   useEffect(() => {
-    setLiked(post.user_has_liked || false);
-    setLikesCount(post.likes_count || 0);
-    setCommentsCount(post.comments_count || 0);
-  }, [post.id]); // Only re-initialize when post ID changes
+    if (post) {
+      setLiked(post.user_has_liked || false);
+      setLikesCount(post.likes_count || 0);
+      setCommentsCount(post.comments_count || 0);
+    }
+  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count]);
 
   useEffect(() => {
     if (isSupabaseConfigured && post.id) {

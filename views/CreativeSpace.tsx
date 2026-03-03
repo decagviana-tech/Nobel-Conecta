@@ -40,7 +40,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select('*, author:profiles(*), likes(user_id), comments(count)')
+        .select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)')
         .eq('type', 'creative')
         .order('created_at', { ascending: false });
 
@@ -49,7 +49,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
         ...p,
         likes_count: p.likes?.length || 0,
         comments_count: p.comments?.[0]?.count || 0,
-        user_has_liked: p.likes?.some((l: any) => l.user_id === profile?.id)
+        user_has_liked: profile?.id ? p.likes?.some((l: any) => l.user_id === profile.id) : false
       })) || []);
     } catch (err) {
       console.error('Error fetching creative posts:', err);
