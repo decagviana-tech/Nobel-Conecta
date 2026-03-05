@@ -11,6 +11,7 @@ export interface Profile {
   email?: string;
   following_ids?: string[];
   points?: number;
+  created_at: string;
 }
 
 export interface BookClub {
@@ -38,7 +39,7 @@ export interface Post {
   likes_count: number;
   comments_count: number;
   user_has_liked?: boolean;
-  type: 'review' | 'creative' | 'club_thought';
+  type: 'review' | 'creative' | 'club_thought' | 'poem' | 'quote';
   title?: string;
   club_id?: string; // Vinculação opcional a um clube
 }
@@ -62,6 +63,9 @@ export interface LibraryEvent {
   description: string;
   image_url: string;
   type: 'upcoming' | 'past';
+  max_participants?: number;
+  participants_count?: number;
+  created_at?: string;
 }
 
 export interface Comment {

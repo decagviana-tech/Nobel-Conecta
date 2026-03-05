@@ -1,56 +1,79 @@
 
 import React, { useState, useEffect } from 'react';
-import { PenTool, Plus } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { awardPoints } from '../src/services/pointsService';
-import { Post, Profile } from '../types';
-import CreatePostModal from '../components/CreatePostModal';
+import { Post as CreativePost, Profile } from '../types';
+import { Plus, Loader2, Image as ImageIcon, Sparkles, Heart, MessageSquare, Trash2, Send, ArrowRight } from 'lucide-react';
 import CreativePostCard from '../components/CreativePostCard';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface CreativeSpaceProps {
   profile: Profile | null;
 }
 
-const STORAGE_KEY = 'nobel_conecta_creative_posts';
-
 const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<CreativePost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const [newPost, setNewPost] = useState({
+    title: '',
+    content: '',
+    type: 'poem' as 'poem' | 'quote' | 'short_story' | 'art_description',
+    image_url: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
 
   useEffect(() => {
     fetchPosts();
-  }, [profile?.id]);
+  }, []);
 
   const fetchPosts = async () => {
-    if (!isSupabaseConfigured) {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setPosts(parsed.filter((p: any) => p.id !== 'c1'));
-      }
-      setLoading(false);
-      return;
-    }
-
     try {
+      if (!isSupabaseConfigured) {
+        // Demo mode
+        const demo: CreativePost[] = [{
+          id: '1',
+          title: 'O Silêncio das Páginas',
+          content: 'No entrelaço das letras, encontro o porto seguro onde a alma descansa e o sonho desperta.',
+          type: 'poem',
+          user_id: 'system',
+          author: { username: 'nobel_conecta', avatar_url: '' } as any,
+          images: [],
+          likes_count: 24,
+          comments_count: 5,
+          created_at: new Date().toISOString()
+        }];
+        setPosts(demo);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
-        .from('posts')
-        .select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)')
-        .eq('type', 'creative')
+        .from('creative_posts')
+        .select(`
+          *,
+          author:profiles(*),
+          creative_likes(count),
+          creative_comments(count)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPosts(data?.map((p: any) => ({
+      setPosts(data.map((p: any) => ({
         ...p,
-        likes_count: p.likes?.length || 0,
-        comments_count: p.comments?.[0]?.count || 0,
-        user_has_liked: profile?.id ? p.likes?.some((l: any) => l.user_id === profile.id) : false
-      })) || []);
+        likes_count: p.creative_likes?.[0]?.count || 0,
+        comments_count: p.creative_comments?.[0]?.count || 0
+      })));
     } catch (err) {
       console.error('Error fetching creative posts:', err);
     } finally {
@@ -58,90 +81,200 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
     }
   };
 
-  const handlePostCreated = async (newPost?: Post) => {
-    if (newPost) {
-      await fetchPosts();
-    } else {
-      await fetchPosts();
-    }
-    setShowCreateModal(false);
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !isSupabaseConfigured) return;
 
-  const handleDelete = async (id: string) => {
-    console.log('Iniciando exclusão do post:', id);
-    // Removido window.confirm para evitar travamentos
-    const confirmed = true;
-    
-    if (!isSupabaseConfigured) {
-      console.log('Modo Demo: excluindo localmente');
-      const updated = posts.filter(p => p.id !== id);
-      setPosts(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return;
-    }
-
+    setSubmitting(true);
     try {
-      console.log('Chamando Supabase para excluir:', id);
-      const { error } = await supabase.from('posts').delete().eq('id', id);
-      if (error) {
-        console.error('Erro retornado pelo Supabase:', error);
-        throw error;
-      }
-      console.log('Exclusão bem-sucedida no Supabase');
-      setPosts(posts.filter(p => p.id !== id));
-    } catch (err: any) {
-      console.error('Erro catastrófico na exclusão:', err);
-      alert('Erro ao excluir: ' + (err.message || 'Verifique sua conexão.'));
+      const { error } = await supabase
+        .from('creative_posts')
+        .insert({
+          ...newPost,
+          user_id: profile.id
+        });
+
+      if (error) throw error;
+      setShowCreateModal(false);
+      setNewPost({ title: '', content: '', type: 'poem', image_url: '' });
+      fetchPosts();
+    } catch (err) {
+      alert('Erro ao publicar.');
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  const handleDeletePost = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Criação?",
+      message: "Tem certeza que deseja apagar esta obra permanentemente do seu portfólio criativo?",
+      onConfirm: async () => {
+        if (!isSupabaseConfigured) {
+          setPosts(posts.filter(p => p.id !== id));
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          return;
+        }
+
+        try {
+          await supabase.from('creative_posts').delete().eq('id', id);
+          fetchPosts();
+        } catch (err) {
+          alert('Erro ao excluir.');
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  if (loading) return <div className="p-10 text-center font-serif italic text-gray-400">Inspirando a alma...</div>;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 md:pt-16 mb-24">
-      <div className="flex flex-col items-center text-center mb-12">
-        <div className="w-16 h-16 bg-black text-yellow-400 rounded-3xl flex items-center justify-center shadow-xl rotate-3 mb-6">
-          <PenTool size={32} />
-        </div>
-        <h2 className="text-4xl font-black text-gray-900 font-serif tracking-tight">Mural de Escrita</h2>
-        <p className="text-gray-400 mt-2 font-medium italic">Comunidade Petrópolis literária</p>
-      </div>
-
-      <div className="space-y-10">
-        {loading ? (
-          <div className="text-center py-20 text-gray-400 font-serif italic">Carregando mural...</div>
-        ) : posts.map(post => (
-          <CreativePostCard 
-            key={post.id} 
-            post={post} 
-            currentProfile={profile} 
-            onDelete={handleDelete} 
-            isAdmin={isAdmin} 
-          />
-        ))}
-
-        {posts.length === 0 && !loading && (
-          <div className="text-center py-20 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">
-            <PenTool className="mx-auto text-gray-200 mb-4" size={48} />
-            <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">O mural está esperando suas palavras</p>
+    <div className="max-w-2xl mx-auto px-4 py-8 md:pt-12">
+      {/* Header Estilizado */}
+      <div className="bg-black rounded-[2.5rem] p-10 mb-10 text-white relative overflow-hidden shadow-2xl">
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-yellow-400 p-2.5 rounded-2xl">
+              <Sparkles className="text-black" size={24} />
+            </div>
+            <h2 className="text-4xl font-black font-serif italic tracking-tighter">Espaço Criativo</h2>
           </div>
-        )}
+          <p className="text-gray-400 text-sm max-w-sm leading-relaxed italic">
+            Onde as palavras ganham vida e a arte encontra seu lar. Compartilhe seus poemas, contos e pensamentos com a comunidade Nobel.
+          </p>
+        </div>
+
+        {/* Floating Icons background decoration */}
+        <div className="absolute top-10 right-10 text-white/5 rotate-12">
+          <Heart size={120} strokeWidth={2} />
+        </div>
+        <div className="absolute -bottom-10 left-20 text-white/5 -rotate-12">
+          <MessageSquare size={160} strokeWidth={2} />
+        </div>
       </div>
 
-      <button 
+      {/* Botão de Criação */}
+      <button
         onClick={() => setShowCreateModal(true)}
-        className="fixed bottom-24 md:bottom-24 right-6 bg-yellow-400 text-black p-6 rounded-[2rem] shadow-2xl hover:scale-110 active:scale-95 transition-all z-50 border-4 border-white"
+        className="w-full mb-10 group"
       >
-        <Plus size={32} strokeWidth={4} />
+        <div className="bg-white border-2 border-dashed border-gray-200 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 group-hover:border-yellow-400 group-hover:bg-yellow-50/30 transition-all duration-500">
+          <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-yellow-400 group-hover:text-black group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+            <Plus size={32} strokeWidth={2.5} />
+          </div>
+          <div className="text-center">
+            <h3 className="text-black font-black uppercase tracking-[0.2em] text-[10px] mb-1">O que a sua alma diz hoje?</h3>
+            <p className="text-gray-400 text-[10px] italic">Clique aqui para publicar uma nova criação</p>
+          </div>
+        </div>
       </button>
 
-      {showCreateModal && profile && (
-        <CreatePostModal 
-          userId={profile.id} 
-          currentProfile={profile}
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={handlePostCreated}
-          postType="creative"
-        />
+      <div className="space-y-12 pb-24">
+        {posts.map(post => (
+          <div key={post.id} className="relative group">
+            <CreativePostCard post={post} currentUser={profile} />
+            {(profile?.id === post.user_id || profile?.role === 'admin') && (
+              <button
+                onClick={() => handleDeletePost(post.id)}
+                className="absolute top-6 right-6 p-3 bg-red-50 text-red-500 rounded-2xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-100 shadow-xl"
+              >
+                <Trash2 size={20} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Modal de Criação */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[20000] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-xl rounded-[3rem] overflow-hidden shadow-2xl relative">
+            <div className="p-10">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="bg-black text-yellow-400 p-2 rounded-xl">
+                  <Sparkles size={20} />
+                </div>
+                <h3 className="text-3xl font-black font-serif italic tracking-tighter">Manifeste-se</h3>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Tipo de Obra</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'poem', label: 'Poesia' },
+                      { id: 'quote', label: 'Citação' },
+                      { id: 'short_story', label: 'Conto' },
+                      { id: 'art_description', label: 'Insight' }
+                    ].map(type => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => setNewPost({ ...newPost, type: type.id as any })}
+                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${newPost.type === type.id
+                          ? 'bg-black text-yellow-400'
+                          : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                          }`}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <input
+                    className="w-full bg-transparent border-b-2 border-gray-100 py-4 text-2xl font-black font-serif italic outline-none focus:border-black transition-colors"
+                    placeholder="Dê um título à sua obra..."
+                    value={newPost.title}
+                    onChange={e => setNewPost({ ...newPost, title: e.target.value })}
+                    required
+                  />
+
+                  <textarea
+                    className="w-full bg-gray-50 rounded-3xl p-8 text-sm leading-relaxed outline-none min-h-[200px] italic border-2 border-transparent focus:border-yellow-400 transition-all custom-scrollbar"
+                    placeholder="Sua inspiração aqui..."
+                    value={newPost.content}
+                    onChange={e => setNewPost({ ...newPost, content: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-6">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 bg-black text-yellow-400 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {submitting ? <Loader2 className="animate-spin" /> : (
+                      <>
+                        <Send size={18} /> Publicar Obra
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 bg-gray-100 text-gray-400 py-5 rounded-2xl font-black uppercase tracking-widest text-xs"
+                  >
+                    Guardar para Depois
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

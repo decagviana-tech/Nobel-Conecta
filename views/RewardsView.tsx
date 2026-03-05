@@ -2,14 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { Profile, Reward, Redemption } from '../types';
-import { 
-  Ticket, 
-  Gift, 
-  ShoppingBag, 
-  Plus, 
-  Trash2, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Ticket,
+  Gift,
+  ShoppingBag,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Clock,
   AlertCircle,
   Image as ImageIcon,
   Loader2,
@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface RewardsViewProps {
   profile: Profile | null;
@@ -43,11 +44,22 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
   const [activeTab, setActiveTab] = useState<'available' | 'my_redemptions'>('available');
   const [error, setError] = useState<string | null>(null);
 
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const isAdmin = profile?.role === 'admin' ||
+    profile?.username === 'nobel_oficial' ||
+    profile?.username === 'nobelpetro';
 
   const [rewardToDelete, setRewardToDelete] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
 
   useEffect(() => {
     fetchRewards();
@@ -177,7 +189,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
 
     try {
       const { is_active, stock, ...rewardFields } = newReward;
-      
+
       const rewardData: any = {
         ...rewardFields,
         image_url: newImageUrl,
@@ -189,19 +201,19 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       }
 
       if (!isSupabaseConfigured) {
-        const newRewardObj = { 
-          ...rewardData, 
-          id: `demo-${Date.now()}-${Math.floor(Math.random() * 1000)}`, 
-          is_active: true, 
-          stock: newReward.stock || 0 
+        const newRewardObj = {
+          ...rewardData,
+          id: `demo-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          is_active: true,
+          stock: newReward.stock || 0
         } as Reward;
-        
+
         setRewards(prev => {
           const updated = [...prev, newRewardObj];
           localStorage.setItem('nobel_conecta_demo_rewards', JSON.stringify(updated));
           return updated;
         });
-        
+
         alert('Recompensa criada com sucesso (Modo Demo)!');
       } else {
         const { error } = await supabase.from('rewards').insert([rewardData]);
@@ -230,12 +242,12 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     console.log('--- INÍCIO PROCESSO DE EXCLUSÃO ---');
     console.log('ID alvo:', id);
     console.log('Estado atual de rewards (count):', rewards.length);
-    
+
     console.log('Procedendo com a exclusão otimista...');
-    
+
     // Guardar estado anterior para rollback em caso de erro
     const previousRewards = [...rewards];
-    
+
     // Atualização otimista: remove da tela imediatamente
     setRewards(prev => {
       const filtered = prev.filter(r => String(r.id) !== String(id));
@@ -255,30 +267,33 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         console.log('Modo Supabase: enviando DELETE para o servidor');
         // Tenta excluir permanentemente
         const { error } = await supabase.from('rewards').delete().eq('id', id);
-        
+
         if (error) {
           console.error('Erro retornado pelo Supabase:', error);
-          
+
           // Erro 23503 é violação de chave estrangeira (já foi resgatado)
           if (error.code === '23503' || error.message?.includes('foreign key')) {
             console.log('Detectada restrição de chave estrangeira. Oferecendo desativação...');
-            if (window.confirm('Esta recompensa já possui resgates vinculados e não pode ser apagada do histórico. Deseja apenas desativá-la para que não apareça mais na lista?')) {
-              console.log('Usuário aceitou desativação. Enviando UPDATE...');
-              const { error: updateError } = await supabase
-                .from('rewards')
-                .update({ is_active: false })
-                .eq('id', id);
-              
-              if (updateError) {
-                console.error('Erro ao desativar:', updateError);
-                throw updateError;
+            setConfirmModal({
+              isOpen: true,
+              title: "Desativar Recompensa?",
+              message: "Esta recompensa já possui resgates vinculados e não pode ser apagada do histórico. Deseja apenas desativá-la para que não apareça mais na lista?",
+              onConfirm: async () => {
+                console.log('Usuário aceitou desativação. Enviando UPDATE...');
+                const { error: updateError } = await supabase
+                  .from('rewards')
+                  .update({ is_active: false })
+                  .eq('id', id);
+
+                if (updateError) {
+                  console.error('Erro ao desativar:', updateError);
+                  alert(`Erro ao desativar: ${updateError.message}`);
+                } else {
+                  console.log('Recompensa desativada com sucesso (soft delete)');
+                }
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
               }
-              console.log('Recompensa desativada com sucesso (soft delete)');
-            } else {
-              console.log('Usuário recusou desativação. Revertendo interface...');
-              // Usuário cancelou a desativação, volta o item para a lista
-              setRewards(previousRewards);
-            }
+            });
           } else {
             throw error;
           }
@@ -297,7 +312,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
 
   const handleRedeem = async (reward: Reward) => {
     if (!profile) return;
-    
+
     if ((profile.points || 0) < reward.points_required) {
       alert('Você não tem pontos suficientes.');
       return;
@@ -308,73 +323,79 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       return;
     }
 
-    if (!window.confirm(`Deseja resgatar "${reward.title}" por ${reward.points_required} pontos?`)) return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirmar Resgate?",
+      message: `Deseja resgatar "${reward.title}" por ${reward.points_required} pontos?`,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        try {
+          const redemptionCode = reward.type === 'discount'
+            ? `NOBEL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+            : null;
 
-    try {
-      const redemptionCode = reward.type === 'discount' 
-        ? `NOBEL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-        : null;
+          const redemptionData: Partial<Redemption> = {
+            user_id: profile.id,
+            reward_id: reward.id,
+            status: 'pending',
+            redemption_code: redemptionCode || undefined,
+            created_at: new Date().toISOString()
+          };
 
-      const redemptionData: Partial<Redemption> = {
-        user_id: profile.id,
-        reward_id: reward.id,
-        status: 'pending',
-        redemption_code: redemptionCode || undefined,
-        created_at: new Date().toISOString()
-      };
+          const newPoints = (profile.points || 0) - reward.points_required;
 
-      const newPoints = (profile.points || 0) - reward.points_required;
+          if (!isSupabaseConfigured) {
+            // Mock points update
+            const updatedProfile = { ...profile, points: newPoints };
+            localStorage.setItem('nobel_demo_session', JSON.stringify(updatedProfile));
 
-      if (!isSupabaseConfigured) {
-        // Mock points update
-        const updatedProfile = { ...profile, points: newPoints };
-        localStorage.setItem('nobel_demo_session', JSON.stringify(updatedProfile));
-        
-        const newRedemption = { ...redemptionData, id: Math.random().toString(), reward } as Redemption;
-        const updatedRedemptions = [newRedemption, ...redemptions];
-        setRedemptions(updatedRedemptions);
-        localStorage.setItem('nobel_demo_redemptions', JSON.stringify(updatedRedemptions));
-        
-        // Update local rewards stock
-        if (reward.type === 'gift' && reward.stock !== undefined) {
-          setRewards(rewards.map(r => r.id === reward.id ? { ...r, stock: r.stock! - 1 } : r));
+            const newRedemption = { ...redemptionData, id: Math.random().toString(), reward } as Redemption;
+            const updatedRedemptions = [newRedemption, ...redemptions];
+            setRedemptions(updatedRedemptions);
+            localStorage.setItem('nobel_demo_redemptions', JSON.stringify(updatedRedemptions));
+
+            // Update local rewards stock
+            if (reward.type === 'gift' && reward.stock !== undefined) {
+              setRewards(rewards.map(r => r.id === reward.id ? { ...r, stock: r.stock! - 1 } : r));
+            }
+
+            alert('Resgate realizado com sucesso! Verifique em "Meus Resgates".');
+            window.location.reload(); // To refresh profile points in navbar
+          } else {
+            // Update points in DB
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .update({ points: newPoints })
+              .eq('id', profile.id);
+
+            if (profileError) throw profileError;
+
+            // Create redemption record
+            const { error: redemptionError } = await supabase
+              .from('redemptions')
+              .insert([redemptionData]);
+
+            if (redemptionError) throw redemptionError;
+
+            // Update stock if it's a gift
+            if (reward.type === 'gift' && reward.stock !== undefined) {
+              await supabase
+                .from('rewards')
+                .update({ stock: reward.stock - 1 })
+                .eq('id', reward.id);
+            }
+
+            alert('Resgate realizado com sucesso!');
+            fetchRedemptions();
+            fetchRewards();
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error('Erro ao realizar resgate:', err);
+          alert('Erro ao realizar resgate.');
         }
-        
-        alert('Resgate realizado com sucesso! Verifique em "Meus Resgates".');
-        window.location.reload(); // To refresh profile points in navbar
-      } else {
-        // Update points in DB
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ points: newPoints })
-          .eq('id', profile.id);
-        
-        if (profileError) throw profileError;
-
-        // Create redemption record
-        const { error: redemptionError } = await supabase
-          .from('redemptions')
-          .insert([redemptionData]);
-        
-        if (redemptionError) throw redemptionError;
-
-        // Update stock if it's a gift
-        if (reward.type === 'gift' && reward.stock !== undefined) {
-          await supabase
-            .from('rewards')
-            .update({ stock: reward.stock - 1 })
-            .eq('id', reward.id);
-        }
-
-        alert('Resgate realizado com sucesso!');
-        fetchRedemptions();
-        fetchRewards();
-        window.location.reload();
       }
-    } catch (err) {
-      console.error('Erro ao realizar resgate:', err);
-      alert('Erro ao realizar resgate.');
-    }
+    });
   };
 
   return (
@@ -395,7 +416,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             Continue participando da comunidade para ganhar mais pontos e trocar por prêmios exclusivos!
           </p>
         </div>
-        
+
         {/* Background Decoration */}
         <div className="absolute -right-10 -bottom-10 opacity-10 rotate-12">
           <Ticket size={240} strokeWidth={1} />
@@ -442,7 +463,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
           <div>
             <h3 className="text-red-900 font-black uppercase tracking-widest text-[10px] mb-1">Atenção</h3>
             <p className="text-red-700 text-sm leading-relaxed mb-3">{error}</p>
-            <button 
+            <button
               onClick={() => {
                 setLoading(true);
                 fetchRewards();
@@ -460,17 +481,15 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       <div className="flex gap-2 mb-8 bg-gray-100 p-1.5 rounded-2xl">
         <button
           onClick={() => setActiveTab('available')}
-          className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
-            activeTab === 'available' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'
-          }`}
+          className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${activeTab === 'available' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'
+            }`}
         >
           Prêmios Disponíveis
         </button>
         <button
           onClick={() => setActiveTab('my_redemptions')}
-          className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
-            activeTab === 'my_redemptions' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'
-          }`}
+          className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${activeTab === 'my_redemptions' ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:text-gray-600'
+            }`}
         >
           Meus Resgates
         </button>
@@ -492,146 +511,144 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             {rewards
               .filter(r => r.is_active !== false)
               .map((reward) => (
-              <motion.div
-                key={reward.id}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-row items-center p-4 gap-6"
-              >
-                {reward.image_url ? (
-                  <div className="w-24 h-32 sm:w-32 sm:h-40 shrink-0 overflow-hidden rounded-2xl relative bg-gray-900">
-                    <img 
-                      src={reward.image_url} 
-                      alt={reward.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-                ) : (
-                  <div className={`w-24 h-32 sm:w-32 sm:h-40 shrink-0 flex flex-col items-center justify-center rounded-2xl relative overflow-hidden ${
-                    reward.type === 'discount' ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'
-                  }`}>
-                    <div className="absolute inset-0 opacity-10 pointer-events-none">
-                      <div className="grid grid-cols-4 gap-2 p-2">
-                        {[...Array(12)].map((_, i) => (
-                          <div key={i} className="w-full aspect-square border border-current rounded-full" />
-                        ))}
-                      </div>
+                <motion.div
+                  key={reward.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-row items-center p-4 gap-6"
+                >
+                  {reward.image_url ? (
+                    <div className="w-24 h-32 sm:w-32 sm:h-40 shrink-0 overflow-hidden rounded-2xl relative bg-gray-900">
+                      <img
+                        src={reward.image_url}
+                        alt={reward.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
                     </div>
-                    {reward.type === 'discount' ? (
-                      <>
-                        <Ticket size={32} strokeWidth={2.5} />
-                        <span className="text-[9px] font-black uppercase tracking-widest mt-2 text-center px-1">10% DESCONTO</span>
-                      </>
-                    ) : (
-                      <>
-                        <Gift size={32} strokeWidth={2.5} />
-                        <span className="text-[10px] font-black uppercase tracking-widest mt-2">BRINDE</span>
-                      </>
-                    )}
-                    <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-white rounded-full" />
-                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-white rounded-full" />
-                  </div>
-                )}
-
-                <div className="flex-1 flex flex-col py-2 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
+                  ) : (
+                    <div className={`w-24 h-32 sm:w-32 sm:h-40 shrink-0 flex flex-col items-center justify-center rounded-2xl relative overflow-hidden ${reward.type === 'discount' ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'
+                      }`}>
+                      <div className="absolute inset-0 opacity-10 pointer-events-none">
+                        <div className="grid grid-cols-4 gap-2 p-2">
+                          {[...Array(12)].map((_, i) => (
+                            <div key={i} className="w-full aspect-square border border-current rounded-full" />
+                          ))}
+                        </div>
+                      </div>
                       {reward.type === 'discount' ? (
-                        <Ticket size={12} className="text-yellow-500" />
+                        <>
+                          <Ticket size={32} strokeWidth={2.5} />
+                          <span className="text-[9px] font-black uppercase tracking-widest mt-2 text-center px-1">10% DESCONTO</span>
+                        </>
                       ) : (
-                        <ShoppingBag size={12} className="text-yellow-500" />
+                        <>
+                          <Gift size={32} strokeWidth={2.5} />
+                          <span className="text-[10px] font-black uppercase tracking-widest mt-2">BRINDE</span>
+                        </>
                       )}
-                      <span className="text-[8px] font-black uppercase tracking-widest text-yellow-600">
-                        {reward.type === 'discount' ? 'Cupom' : 'Brinde'}
-                      </span>
-                    </div>
-                    <div className="bg-black text-yellow-400 px-2 py-1 rounded-lg font-black text-[9px] uppercase tracking-widest">
-                      {reward.points_required} pts
-                    </div>
-                  </div>
-                  
-                  <h3 className="text-lg font-black tracking-tight text-gray-900 mb-1 font-serif italic truncate">{reward.title}</h3>
-                  <p className="text-gray-500 text-xs mb-4 line-clamp-2 italic">"{reward.description}"</p>
-
-                  {reward.type === 'gift' && reward.stock !== undefined && (
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all ${reward.stock > 0 ? 'bg-yellow-400' : 'bg-red-500'}`}
-                          style={{ width: `${Math.min((reward.stock / 10) * 100, 100)}%` }}
-                        ></div>
-                      </div>
-                      <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${reward.stock > 0 ? 'text-gray-400' : 'text-red-600'}`}>
-                        {reward.stock > 0 ? `${reward.stock} un` : 'Esgotado'}
-                      </span>
+                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-white rounded-full" />
+                      <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-white rounded-full" />
                     </div>
                   )}
 
-                  <div className="flex gap-2 mt-auto">
-                    <button
-                      onClick={() => handleRedeem(reward)}
-                      disabled={(profile?.points || 0) < reward.points_required || (reward.type === 'gift' && reward.stock === 0)}
-                      className={`flex-1 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all ${
-                        (profile?.points || 0) >= reward.points_required && (reward.type !== 'gift' || (reward.stock || 0) > 0)
-                          ? 'bg-yellow-400 text-black hover:bg-yellow-500 shadow-md'
-                          : 'bg-gray-50 text-gray-300 cursor-not-allowed'
-                      }`}
-                    >
-                      {(profile?.points || 0) >= reward.points_required ? 'Resgatar' : 'Faltam Pontos'}
-                    </button>
-                    
-                    {isAdmin && (
-                      <div className="relative">
-                        <AnimatePresence mode="wait">
-                          {rewardToDelete === reward.id ? (
-                            <motion.div
-                              key="confirm"
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              className="flex items-center gap-2 bg-red-50 p-2 rounded-2xl border border-red-100"
-                            >
-                              <button
-                                onClick={() => handleDeleteReward(reward.id)}
-                                className="px-3 py-2 bg-red-500 text-white rounded-xl font-black uppercase tracking-widest text-[8px] hover:bg-red-600 transition-colors"
-                              >
-                                Sim, Excluir
-                              </button>
-                              <button
-                                onClick={() => setRewardToDelete(null)}
-                                className="p-2 text-gray-400 hover:text-gray-600"
-                              >
-                                <X size={16} />
-                              </button>
-                            </motion.div>
-                          ) : (
-                            <motion.button
-                              key="delete"
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('Botão de lixeira clicado para ID:', reward.id);
-                                setRewardToDelete(reward.id);
-                              }}
-                              className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all cursor-pointer relative z-20 flex items-center justify-center"
-                              title="Excluir recompensa"
-                            >
-                              <Trash2 size={20} />
-                            </motion.button>
-                          )}
-                        </AnimatePresence>
+                  <div className="flex-1 flex flex-col py-2 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {reward.type === 'discount' ? (
+                          <Ticket size={12} className="text-yellow-500" />
+                        ) : (
+                          <ShoppingBag size={12} className="text-yellow-500" />
+                        )}
+                        <span className="text-[8px] font-black uppercase tracking-widest text-yellow-600">
+                          {reward.type === 'discount' ? 'Cupom' : 'Brinde'}
+                        </span>
+                      </div>
+                      <div className="bg-black text-yellow-400 px-2 py-1 rounded-lg font-black text-[9px] uppercase tracking-widest">
+                        {reward.points_required} pts
+                      </div>
+                    </div>
+
+                    <h3 className="text-lg font-black tracking-tight text-gray-900 mb-1 font-serif italic truncate">{reward.title}</h3>
+                    <p className="text-gray-500 text-xs mb-4 line-clamp-2 italic">"{reward.description}"</p>
+
+                    {reward.type === 'gift' && reward.stock !== undefined && (
+                      <div className="mb-4 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${reward.stock > 0 ? 'bg-yellow-400' : 'bg-red-500'}`}
+                            style={{ width: `${Math.min((reward.stock / 10) * 100, 100)}%` }}
+                          ></div>
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${reward.stock > 0 ? 'text-gray-400' : 'text-red-600'}`}>
+                          {reward.stock > 0 ? `${reward.stock} un` : 'Esgotado'}
+                        </span>
                       </div>
                     )}
+
+                    <div className="flex gap-2 mt-auto">
+                      <button
+                        onClick={() => handleRedeem(reward)}
+                        disabled={(profile?.points || 0) < reward.points_required || (reward.type === 'gift' && reward.stock === 0)}
+                        className={`flex-1 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all ${(profile?.points || 0) >= reward.points_required && (reward.type !== 'gift' || (reward.stock || 0) > 0)
+                          ? 'bg-yellow-400 text-black hover:bg-yellow-500 shadow-md'
+                          : 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                          }`}
+                      >
+                        {(profile?.points || 0) >= reward.points_required ? 'Resgatar' : 'Faltam Pontos'}
+                      </button>
+
+                      {isAdmin && (
+                        <div className="relative">
+                          <AnimatePresence mode="wait">
+                            {rewardToDelete === reward.id ? (
+                              <motion.div
+                                key="confirm"
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                className="flex items-center gap-2 bg-red-50 p-2 rounded-2xl border border-red-100"
+                              >
+                                <button
+                                  onClick={() => handleDeleteReward(reward.id)}
+                                  className="px-3 py-2 bg-red-500 text-white rounded-xl font-black uppercase tracking-widest text-[8px] hover:bg-red-600 transition-colors"
+                                >
+                                  Sim, Excluir
+                                </button>
+                                <button
+                                  onClick={() => setRewardToDelete(null)}
+                                  className="p-2 text-gray-400 hover:text-gray-600"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </motion.div>
+                            ) : (
+                              <motion.button
+                                key="delete"
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  console.log('Botão de lixeira clicado para ID:', reward.id);
+                                  setRewardToDelete(reward.id);
+                                }}
+                                className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all cursor-pointer relative z-20 flex items-center justify-center"
+                                title="Excluir recompensa"
+                              >
+                                <Trash2 size={20} />
+                              </motion.button>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
           </div>
         </>
       ) : (
@@ -643,16 +660,15 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             </div>
           ) : (
             redemptions.map((redemption) => (
-              <div 
+              <div
                 key={redemption.id}
                 className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4"
               >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                  redemption.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-yellow-50 text-yellow-500'
-                }`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${redemption.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-yellow-50 text-yellow-500'
+                  }`}>
                   {redemption.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                   <h4 className="font-black text-gray-900 truncate">{redemption.reward?.title || 'Prêmio'}</h4>
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
@@ -667,9 +683,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   </div>
                 )}
 
-                <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                  redemption.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                }`}>
+                <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${redemption.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
                   {redemption.status === 'completed' ? 'Concluído' : 'Pendente'}
                 </div>
               </div>
@@ -697,7 +712,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             >
               <div className="p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
                 <h2 className="text-2xl font-black tracking-tighter font-serif italic">Novo Prêmio</h2>
-                <button 
+                <button
                   onClick={() => setShowCreateModal(false)}
                   className="p-2 hover:bg-gray-100 rounded-full transition-all"
                 >
@@ -714,7 +729,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                       {newImageUrl ? (
                         <>
                           <img src={newImageUrl} className="w-full h-full object-cover" />
-                          <button 
+                          <button
                             onClick={() => setNewImageUrl('')}
                             className="absolute top-3 right-3 p-1.5 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-red-500 transition-all"
                           >
@@ -787,20 +802,29 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Descrição</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Regras / Descrição</label>
                     <textarea
                       value={newReward.description}
                       onChange={(e) => setNewReward({ ...newReward, description: e.target.value })}
-                      className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-yellow-400 font-bold text-sm h-20 resize-none"
-                      placeholder="Descreva as condições do prêmio..."
+                      rows={3}
+                      className="w-full px-4 py-3 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-yellow-400 text-sm"
+                      placeholder="Ex: Válido para livros de ficção..."
                     />
                   </div>
+                </div>
 
+                <div className="flex gap-4 mt-8 pt-4 border-t border-gray-50">
                   <button
                     onClick={handleCreateReward}
-                    className="w-full py-4 bg-black text-yellow-400 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all"
+                    className="flex-1 bg-black text-yellow-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:scale-[1.02] transition-all"
                   >
-                    Criar Recompensa
+                    Criar Prêmio
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 bg-gray-100 text-gray-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px]"
+                  >
+                    Cancelar
                   </button>
                 </div>
               </div>
@@ -808,6 +832,14 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

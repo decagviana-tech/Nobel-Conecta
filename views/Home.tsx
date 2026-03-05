@@ -58,7 +58,8 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
             full_name: 'Livraria Nobel',
             avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
             role: 'admin',
-            favorite_genres: ['Clássicos']
+            favorite_genres: ['Clássicos'],
+            created_at: new Date().toISOString()
           }
         };
         setPosts([initialPost]);
@@ -107,8 +108,8 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
   const handleDeletePost = async (postId: string) => {
     console.log('handleDeletePost iniciada para ID:', postId);
     // Removido window.confirm pois está travando no ambiente do usuário
-    const confirmed = true; 
-    
+    const confirmed = true;
+
     if (!isSupabaseConfigured) {
       console.log('Modo Demo: excluindo localmente...');
       const updatedPosts = posts.filter(p => p.id !== postId);
@@ -137,17 +138,17 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
   };
 
   const filteredPosts = posts.filter(post => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       post.book_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       post.content?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesTab = activeTab === 'explorar' || followingIds.includes(post.user_id);
-    
+
     return matchesSearch && matchesTab;
   });
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4 md:pt-12">
+    <div className="max-w-5xl mx-auto px-4 py-4 md:pt-12">
       {/* Botões de Ação Rápida */}
       <div className="grid grid-cols-3 gap-3 mb-8">
         <Link to="/shop" className="bg-yellow-400 text-black p-4 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all border-2 border-white">
@@ -158,7 +159,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
           <PenTool size={20} strokeWidth={2.5} />
           <span className="text-[10px] font-black uppercase tracking-widest">Mural</span>
         </Link>
-        <button 
+        <button
           onClick={() => setShowCreateModal(true)}
           className="bg-gray-50 text-gray-900 p-4 rounded-[1.5rem] flex flex-col items-center justify-center gap-2 shadow-sm hover:scale-105 active:scale-95 transition-all border-2 border-white"
         >
@@ -169,13 +170,13 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
 
       {/* Seletor de Abas */}
       <div className="flex border-b border-gray-100 mb-6 bg-white rounded-t-2xl overflow-hidden">
-        <button 
+        <button
           onClick={() => setActiveTab('explorar')}
           className={`flex-1 flex items-center justify-center gap-2 py-4 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'explorar' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
         >
           <Compass size={16} /> Explorar
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('seguindo')}
           className={`flex-1 flex items-center justify-center gap-2 py-4 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'seguindo' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
         >
@@ -185,7 +186,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
 
       <div className="relative mb-6">
         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input 
+        <input
           type="text"
           placeholder="O que você quer ler hoje?"
           className="w-full pl-10 pr-10 py-3 bg-white border border-gray-100 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-yellow-400 text-sm font-bold"
@@ -197,7 +198,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
 
       <div className="space-y-4 pb-20">
         {loading ? (
-          [1,2].map(i => <div key={i} className="h-40 bg-gray-50 rounded-2xl animate-pulse"></div>)
+          [1, 2].map(i => <div key={i} className="h-40 bg-gray-50 rounded-2xl animate-pulse"></div>)
         ) : filteredPosts.length > 0 ? (
           filteredPosts.map(post => (
             <PostCard key={post.id} post={post} currentProfile={profile} onDelete={handleDeletePost} />
@@ -213,8 +214,8 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       </div>
 
       {showCreateModal && profile && (
-        <CreatePostModal 
-          userId={profile.id} 
+        <CreatePostModal
+          userId={profile.id}
           currentProfile={profile}
           onClose={() => setShowCreateModal(false)}
           onSuccess={handlePostCreated}

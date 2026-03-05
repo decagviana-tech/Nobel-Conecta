@@ -19,12 +19,15 @@ import AdminDashboard from './views/AdminDashboard';
 import Navbar from './components/Navbar';
 import LoadingOverlay from './components/LoadingOverlay';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAdmin } from './src/hooks/useAdmin';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const isMounted = React.useRef(true);
+
+  const isAdmin = useAdmin(profile);
 
   useEffect(() => {
     isMounted.current = true;
@@ -101,7 +104,7 @@ const App: React.FC = () => {
 
       if (error) {
         console.warn("Perfil não encontrado, tentando criar automaticamente...");
-        
+
         // Tenta recuperar dados do metadata do usuário (caso tenha vindo do registro)
         const { data: { user } } = await supabase.auth.getUser();
         if (user && isMounted.current) {
@@ -110,7 +113,7 @@ const App: React.FC = () => {
             id: user.id,
             full_name: metadata?.full_name || user.email?.split('@')[0] || 'Novo Leitor',
             username: metadata?.username || user.email?.split('@')[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'leitor' + Math.random().toString(36).substr(2, 4),
-            role: (user.email === 'nobel.petropolis@gmail.com' || user.email === 'decagviana@gmail.com') ? 'admin' : 'user',
+            role: (user.email === 'nobel.petropolis@gmail.com' || user.email === 'decagviana@gmail.com' || user.email === 'nobelpetro@gmail.com') ? 'admin' : 'user',
             points: 0
           };
 
@@ -160,7 +163,7 @@ const App: React.FC = () => {
         {isDemo && (
           <div className="fixed top-0 left-0 right-0 bg-yellow-400 text-black text-[10px] font-black uppercase h-12 z-[10002] tracking-[0.1em] shadow-md flex flex-col items-center justify-center border-b-2 border-black/10 px-4 text-center leading-tight">
             <div className="flex items-center gap-2">
-              <span className="animate-pulse text-red-600 font-serif text-lg">●</span> 
+              <span className="animate-pulse text-red-600 font-serif text-lg">●</span>
               MODO DE DEMONSTRAÇÃO: DADOS SALVOS APENAS NESTE DISPOSITIVO
             </div>
             <div className="text-[8px] opacity-70 normal-case font-bold">
@@ -168,11 +171,11 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-        
+
         {session && <Navbar profile={profile} onLogout={handleLogout} isDemo={isDemo} />}
-        
+
         <main className={`transition-all ${session ? 'pt-16 md:pt-0 pb-24 md:pb-8 md:pl-[240px]' : ''} ${isDemo && session ? 'pt-[6.5rem] md:pt-10' : ''}`}>
-          <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
+          <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
             <AnimatePresence mode="wait">
               <motion.div
                 key={session ? 'authenticated' : 'anonymous'}

@@ -4,6 +4,7 @@ import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Cam
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { awardPoints } from '../src/services/pointsService';
 import { Profile, Giveaway } from '../types';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface GiveawaysViewProps {
   profile: Profile | null;
@@ -22,10 +23,21 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     is_active: true
   });
   const [uploading, setUploading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
 
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const isAdmin = profile?.role === 'admin' ||
+    profile?.username === 'nobel_oficial' ||
+    profile?.username === 'nobelpetro';
 
   useEffect(() => {
     fetchGiveaways();
@@ -58,7 +70,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
+
       setGiveaways(data.map((g: any) => ({
         ...g,
         participants_count: g.giveaway_participants?.[0]?.count || 0
@@ -80,38 +92,44 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
       .from('giveaway_participants')
       .select('giveaway_id')
       .eq('user_id', profile.id);
-    
+
     if (data) setParticipating(data.map(p => p.giveaway_id));
   };
 
-  const handleParticipate = async (giveawayId: string) => {
+  const handleParticipate = (giveawayId: string) => {
     if (!profile) return;
-    if (!isSupabaseConfigured) {
-      setParticipating(prev => [...prev, giveawayId]);
-      alert('Você está participando! (Modo Demo)');
-      return;
-    }
 
-    try {
-      const { error } = await supabase
-        .from('giveaway_participants')
-        .insert({ giveaway_id: giveawayId, user_id: profile.id });
+    setConfirmModal({
+      isOpen: true,
+      title: "Participar do Sorteio?",
+      message: "Deseja entrar neste sorteio? Sorteios ativos dão pontos Nobel!",
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        if (!isSupabaseConfigured) {
+          setParticipating(prev => [...prev, giveawayId]);
+          alert('Você está participando! (Modo Demo)');
+          return;
+        }
 
-      if (error) {
-        if (error.code === '23505') alert('Você já está participando deste sorteio!');
-        else throw error;
-      } else {
-        setParticipating(prev => [...prev, giveawayId]);
-        
-        // Ganho de pontos por participar do sorteio
-        await awardPoints(profile.id, 'giveaway', profile);
-        
-        fetchGiveaways(); // Update count
-        alert('Boa sorte! Você entrou no sorteio e ganhou +5 pontos Nobel.');
+        try {
+          const { error } = await supabase
+            .from('giveaway_participants')
+            .insert({ giveaway_id: giveawayId, user_id: profile.id });
+
+          if (error) {
+            if (error.code === '23505') alert('Você já está participando deste sorteio!');
+            else throw error;
+          } else {
+            setParticipating(prev => [...prev, giveawayId]);
+            await awardPoints(profile.id, 'giveaway', profile);
+            fetchGiveaways();
+            alert('Boa sorte! Você entrou no sorteio e ganhou +5 pontos Nobel.');
+          }
+        } catch (err) {
+          alert('Erro ao participar.');
+        }
       }
-    } catch (err) {
-      alert('Erro ao participar.');
-    }
+    });
   };
 
   const handleCreateGiveaway = async (e: React.FormEvent) => {
@@ -124,7 +142,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     try {
       const { error } = await supabase.from('giveaways').insert(newGiveaway);
       if (error) throw error;
-      
+
       // Enviar notificação para todos os usuários sobre o novo sorteio
       try {
         const { data: profiles } = await supabase.from('profiles').select('id');
@@ -149,16 +167,27 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     }
   };
 
-  const handleDeleteGiveaway = async (id: string) => {
-    // Removido window.confirm para evitar travamentos
-    if (!isSupabaseConfigured) return;
+  const handleDeleteGiveaway = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Sorteio?",
+      message: "Tem certeza que deseja excluir este sorteio permanentemente?",
+      onConfirm: async () => {
+        if (!isSupabaseConfigured) {
+          setGiveaways(giveaways.filter(g => g.id !== id));
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          return;
+        }
 
-    try {
-      await supabase.from('giveaways').delete().eq('id', id);
-      fetchGiveaways();
-    } catch (err) {
-      alert('Erro ao excluir.');
-    }
+        try {
+          await supabase.from('giveaways').delete().eq('id', id);
+          fetchGiveaways();
+        } catch (err) {
+          alert('Erro ao excluir.');
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,7 +213,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
           <p className="text-gray-400 mt-1 font-medium text-xs uppercase tracking-widest">Sua chance de ganhar novos mundos</p>
         </div>
         {isAdmin && (
-          <button 
+          <button
             onClick={() => setShowCreateModal(true)}
             className="bg-black text-yellow-400 p-3 rounded-2xl shadow-xl hover:scale-110 transition-all"
           >
@@ -210,7 +239,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
 
               <div className="p-8">
                 <p className="text-gray-500 text-sm leading-relaxed mb-8 italic">"{giveaway.description}"</p>
-                
+
                 <div className="grid grid-cols-2 gap-4 mb-8">
                   <div className="bg-gray-50 p-4 rounded-2xl flex items-center gap-3">
                     <Calendar className="text-yellow-600" size={18} />
@@ -234,16 +263,16 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                       <CheckCircle2 size={16} /> Já participando
                     </div>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => handleParticipate(giveaway.id)}
                       className="flex-1 bg-yellow-400 text-black py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
                       <Trophy size={16} /> Quero Participar
                     </button>
                   )}
-                  
+
                   {isAdmin && (
-                    <button 
+                    <button
                       onClick={() => handleDeleteGiveaway(giveaway.id)}
                       className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
                     >
@@ -291,25 +320,25 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                 )}
               </div>
 
-              <input 
+              <input
                 className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-sm text-black"
                 placeholder="Título do Sorteio"
                 value={newGiveaway.title}
-                onChange={e => setNewGiveaway({...newGiveaway, title: e.target.value})}
+                onChange={e => setNewGiveaway({ ...newGiveaway, title: e.target.value })}
                 required
               />
-              <textarea 
+              <textarea
                 className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none text-sm min-h-[100px] text-black"
                 placeholder="Descrição do prêmio..."
                 value={newGiveaway.description}
-                onChange={e => setNewGiveaway({...newGiveaway, description: e.target.value})}
+                onChange={e => setNewGiveaway({ ...newGiveaway, description: e.target.value })}
                 required
               />
-              <input 
+              <input
                 type="date"
                 className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-sm text-black"
                 value={newGiveaway.end_date}
-                onChange={e => setNewGiveaway({...newGiveaway, end_date: e.target.value})}
+                onChange={e => setNewGiveaway({ ...newGiveaway, end_date: e.target.value })}
                 required
               />
               <div className="flex gap-4 pt-4">
@@ -320,6 +349,14 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

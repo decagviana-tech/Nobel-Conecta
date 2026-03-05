@@ -1,242 +1,533 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, MapPin, Clock, Plus, Trash2, X, Camera, Loader2 } from 'lucide-react';
-import { LibraryEvent, Profile } from '../types';
-import { uploadFile, supabase } from '../supabase';
+import React, { useState, useEffect } from 'react';
+import { Calendar, MapPin, Users, Plus, Trash2, CheckCircle2, AlertCircle, Clock, ExternalLink, Info, Heart, MessageCircle, Send, X, Camera, Image as ImageIcon } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../supabase';
+import { Profile, LibraryEvent as Event } from '../types';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import ConfirmModal from '../components/ConfirmModal';
 
-const INITIAL_EVENTS: LibraryEvent[] = [];
-
-const EVENTS_STORAGE_KEY = 'nobel_conecta_events';
-
-interface EventsProps {
+interface EventsViewProps {
   profile: Profile | null;
 }
 
-const Events: React.FC<EventsProps> = ({ profile }) => {
-  const [events, setEvents] = useState<LibraryEvent[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '', location: '', description: '', image_url: '' });
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [participating, setParticipating] = useState<string[]>([]);
+  const [likedEvents, setLikedEvents] = useState<string[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showComments, setShowComments] = useState<string | null>(null);
+  const [eventComments, setEventComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const [newEvent, setNewEvent] = useState<Partial<Event>>({
+    title: '',
+    description: '',
+    date: new Date().toISOString(),
+    location: '',
+    image_url: '',
+    max_participants: 20
+  });
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
+
+  const isAdmin = profile?.role === 'admin' ||
+    profile?.username === 'nobel_oficial' ||
+    profile?.username === 'nobelpetro';
 
   useEffect(() => {
-    const saved = localStorage.getItem(EVENTS_STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Remove o evento fake antigo se ele ainda estiver no localStorage do usuário
-      const filtered = parsed.filter((e: any) => e.id !== 'e1');
-      setEvents(filtered);
-      if (filtered.length !== parsed.length) {
-        localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(filtered));
-      }
-    } else {
-      setEvents(INITIAL_EVENTS);
-      localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(INITIAL_EVENTS));
+    fetchEvents();
+    if (profile) {
+      fetchUserParticipations();
+      fetchUserLikes();
     }
-  }, []);
+  }, [profile]);
+
+  const fetchEvents = async () => {
+    try {
+      if (!isSupabaseConfigured) {
+        const demo: Event[] = [{
+          id: '1',
+          title: 'Aniversário na Nobel',
+          description: 'Comemoração pelo aniversário do Matheus! Venha comemorar conosco neste dia especial.',
+          date: '2026-03-05',
+          time: '16:00',
+          location: 'Nobel Petrópolis',
+          image_url: 'https://images.unsplash.com/photo-1530103862676-fa8c91abe178?q=80&w=2070&auto=format&fit=crop',
+          type: 'upcoming',
+          participants_count: 15,
+          max_participants: 50,
+          created_at: new Date().toISOString()
+        }];
+        setEvents(demo);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('events')
+        .select('*, event_participants(count), event_likes(count), event_comments(count)')
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+
+      setEvents(data.map((e: any) => ({
+        ...e,
+        participants_count: e.event_participants?.[0]?.count || 0,
+        likes_count: e.event_likes?.[0]?.count || 0,
+        comments_count: e.event_comments?.[0]?.count || 0
+      })));
+    } catch (err) {
+      console.error('Error fetching events:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserParticipations = async () => {
+    if (!profile || !isSupabaseConfigured) return;
+    const { data } = await supabase.from('event_participants').select('event_id').eq('user_id', profile.id);
+    if (data) setParticipating(data.map(p => p.event_id));
+  };
+
+  const fetchUserLikes = async () => {
+    if (!profile || !isSupabaseConfigured) return;
+    const { data } = await supabase.from('event_likes').select('event_id').eq('user_id', profile.id);
+    if (data) setLikedEvents(data.map(p => p.event_id));
+  };
+
+  const fetchComments = async (eventId: string) => {
+    if (!isSupabaseConfigured) return;
+    const { data } = await supabase
+      .from('event_comments')
+      .select('*, author:profiles(*)')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+    if (data) setEventComments(data);
+  };
+
+  const handleLike = async (eventId: string) => {
+    if (!profile || !isSupabaseConfigured) return;
+    const isLiked = likedEvents.includes(eventId);
+
+    if (isLiked) {
+      setLikedEvents(prev => prev.filter(id => id !== eventId));
+      await supabase.from('event_likes').delete().eq('user_id', profile.id).eq('event_id', eventId);
+    } else {
+      setLikedEvents(prev => [...prev, eventId]);
+      await supabase.from('event_likes').insert({ user_id: profile.id, event_id: eventId });
+    }
+    fetchEvents();
+  };
+
+  const handleAddComment = async (eventId: string) => {
+    if (!profile || !newComment.trim() || isSubmittingComment) return;
+    setIsSubmittingComment(true);
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('event_comments').insert({
+        event_id: eventId,
+        user_id: profile.id,
+        content: newComment
+      });
+      if (!error) {
+        setNewComment('');
+        fetchComments(eventId);
+        fetchEvents();
+      }
+    }
+    setIsSubmittingComment(false);
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setLoading(true);
-      try {
-        const url = await uploadFile('posts', e.target.files[0]);
-        setNewEvent({ ...newEvent, image_url: url });
-      } catch (err) {
-        alert('Erro no upload.');
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
+    const file = e.target.files?.[0];
+    if (!file || !isSupabaseConfigured) return;
 
-  const handleAddEvent = () => {
-    if (!newEvent.title || !newEvent.image_url) {
-      alert('Preencha o título e selecione uma foto para o evento.');
-      return;
-    }
-    const eventToAdd: LibraryEvent = {
-      ...newEvent,
-      id: Math.random().toString(36).substr(2, 9),
-      type: 'upcoming'
-    };
-    const updated = [eventToAdd, ...events];
-    setEvents(updated);
-    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(updated));
-    setShowModal(false);
-    setNewEvent({ title: '', date: '', time: '', location: '', description: '', image_url: '' });
-  };
-
-  const handleSuggestEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile) return;
-    
+    setUploadingImage(true);
     try {
-      // Envia uma notificação para os admins
-      const { data: admins } = await supabase.from('profiles').select('id').or('role.eq.admin,username.eq.nobel_oficial,username.eq.nobelpetro');
-      
-      if (admins && admins.length > 0) {
-        const notifications = admins.map(admin => ({
-          user_id: admin.id,
-          type: 'event_suggestion',
-          title: '💡 Sugestão de Evento',
-          content: `${profile.full_name} sugeriu o evento: ${newEvent.title}`,
-          link: '/admin'
-        }));
-        
-        await supabase.from('notifications').insert(notifications);
-        alert('Obrigado! Sua sugestão foi enviada para a equipe Nobel Petrópolis.');
-        setShowModal(false);
-        setNewEvent({ title: '', date: '', time: '', location: '', description: '', image_url: '' });
-      }
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `events/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('events')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('events')
+        .getPublicUrl(filePath);
+
+      setNewEvent({ ...newEvent, image_url: publicUrl });
     } catch (err) {
-      alert('Sua sugestão foi anotada! (Modo Demo)');
-      setShowModal(false);
+      alert('Erro no upload da imagem');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
-  const handleDelete = (id: string) => {
-    // Removido window.confirm para evitar travamentos
-    const updated = events.filter(e => e.id !== id);
-    setEvents(updated);
-    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(updated));
+  const handleParticipate = async (eventId: string) => {
+    if (!profile) return;
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirmar Presença?",
+      message: "Você deseja confirmar sua vaga neste evento presencial?",
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        if (!isSupabaseConfigured) {
+          setParticipating(prev => [...prev, eventId]);
+          return;
+        }
+
+        try {
+          const { error } = await supabase
+            .from('event_participants')
+            .insert({ event_id: eventId, user_id: profile.id });
+
+          if (error) {
+            if (error.code === '23505') alert('Você já está inscrito neste evento.');
+            else throw error;
+          } else {
+            setParticipating(prev => [...prev, eventId]);
+            fetchEvents();
+          }
+        } catch (err) {
+          alert('Erro ao confirmar presença.');
+        }
+      }
+    });
   };
+
+  const handleDeleteEvent = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Evento?",
+      message: "Tem certeza que deseja cancelar este evento permanentemente?",
+      onConfirm: async () => {
+        if (isSupabaseConfigured) {
+          await supabase.from('events').delete().eq('id', id);
+          fetchEvents();
+        } else {
+          setEvents(events.filter(e => e.id !== id));
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    try {
+      if (!isSupabaseConfigured) {
+        const newEvData = {
+          ...newEvent,
+          id: Math.random().toString(),
+          participants_count: 0,
+          created_at: new Date().toISOString()
+        } as Event;
+        setEvents(prev => [...prev, newEvData]);
+        setShowCreateModal(false);
+        return;
+      }
+
+      const { error } = await supabase.from('events').insert([newEvent]);
+      if (error) throw error;
+
+      setShowCreateModal(false);
+      fetchEvents();
+      alert('Evento criado com sucesso!');
+    } catch (err) {
+      alert('Erro ao criar evento.');
+    }
+  };
+
+  if (loading) return <div className="p-10 text-center text-gray-400 font-serif italic">Preparando os convites...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 md:pt-12 mb-24">
-      <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left">
+    <div className="max-w-4xl mx-auto px-4 py-8 md:pt-12">
+      <div className="flex items-center justify-between mb-10">
         <div>
-          <h2 className="text-3xl md:text-5xl font-black text-gray-900 font-serif tracking-tight">Agenda Cultural</h2>
-          <p className="text-gray-400 mt-2 font-medium">Comunidade Petrópolis literária</p>
+          <h2 className="text-4xl font-black text-gray-900 font-serif tracking-tight">Cultura & Momentos</h2>
+          <p className="text-gray-400 mt-2 font-black text-[10px] uppercase tracking-[0.2em] bg-gray-50 inline-block px-3 py-1 rounded-full border border-gray-100">Encontros presenciais na Nobel Petrópolis</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className={`flex items-center justify-center gap-3 px-8 py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-xl active:scale-95 w-full md:w-auto ${isAdmin ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'}`}
-        >
-          {isAdmin ? (
-            <><Plus size={18} strokeWidth={3} /> Anunciar Evento</>
-          ) : (
-            <><Plus size={18} strokeWidth={3} /> Sugerir Evento</>
-          )}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-black text-yellow-400 p-4 rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all group"
+          >
+            <Plus size={28} className="group-hover:rotate-90 transition-transform" />
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {events.length > 0 ? events.map(event => (
-          <div key={event.id} className="bg-white rounded-[2.5rem] overflow-hidden border border-gray-100 shadow-sm flex flex-col md:flex-row group hover:shadow-lg transition-all duration-500 relative">
-            {isAdmin && (
-              <button 
-                onClick={() => handleDelete(event.id)}
-                className="absolute top-4 right-4 z-20 bg-white/90 backdrop-blur p-2.5 rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-md border border-gray-100"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-            <div className="md:w-1/3 aspect-[2/3] overflow-hidden bg-gray-100">
-              <img src={event.image_url} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-            </div>
-            <div className="p-6 md:p-10 md:w-2/3 flex flex-col">
-              <div className="flex flex-wrap gap-2 mb-4">
-                <span className="flex items-center gap-1.5 text-[8px] font-black text-yellow-700 bg-yellow-400/20 px-3 py-1.5 rounded-full uppercase tracking-widest">
-                  <Calendar size={12} /> {event.date}
-                </span>
-                <span className="flex items-center gap-1.5 text-[8px] font-black text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full uppercase tracking-widest">
-                  <Clock size={12} /> {event.time}
-                </span>
+      <div className="grid grid-cols-1 gap-8 pb-32">
+        {events.length > 0 ? (
+          events.map(event => (
+            <div key={event.id} className="bg-white rounded-[3rem] shadow-xl border border-gray-100 group relative overflow-hidden flex flex-col md:flex-row min-h-[400px]">
+              {/* Artwork Section (Portrait) */}
+              <div className="w-full md:w-[40%] bg-gray-100 relative overflow-hidden shrink-0 aspect-[3/4] md:aspect-auto">
+                {event.image_url ? (
+                  <img src={event.image_url} className="w-full h-full object-cover object-top transition-transform duration-1000 group-hover:scale-110" alt={event.title} />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 gap-3">
+                    <ImageIcon size={48} />
+                    <span className="text-[10px] font-black uppercase tracking-widest italic">Arte do Evento</span>
+                  </div>
+                )}
+                <div className="absolute top-6 left-6 bg-black/90 backdrop-blur-md text-white px-5 py-3 rounded-2xl text-center shadow-2xl border border-white/10">
+                  <span className="block text-[10px] font-black uppercase tracking-widest text-yellow-400">
+                    {format(new Date(event.date), 'MMM', { locale: ptBR })}
+                  </span>
+                  <span className="text-2xl font-black tracking-tighter">
+                    {format(new Date(event.date), 'dd')}
+                  </span>
+                </div>
               </div>
-              <h4 className="text-xl md:text-3xl font-bold text-gray-900 font-serif mb-4 leading-tight">{event.title}</h4>
-              <p className="text-gray-600 text-xs md:text-sm mb-6 leading-relaxed line-clamp-2 italic">"{event.description}"</p>
-              <div className="mt-auto flex items-center gap-2 text-gray-400 text-[8px] font-black uppercase tracking-widest pt-4 border-t border-gray-100">
-                <MapPin size={14} className="text-red-400" />
-                {event.location}
+
+              {/* Content Section */}
+              <div className="flex-1 p-8 md:p-10 flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-2xl md:text-3xl font-black text-gray-900 font-serif italic leading-tight mb-2 uppercase tracking-tighter">{event.title}</h3>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-gray-400 font-black text-[10px] uppercase tracking-widest">
+                        <Clock size={14} className="text-yellow-600" />
+                        {format(new Date(event.date), 'HH:mm')}h
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-400 font-black text-[10px] uppercase tracking-widest">
+                        <MapPin size={14} className="text-yellow-600" />
+                        {event.location}
+                      </div>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => handleDeleteEvent(event.id)} className="p-3 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-gray-600 text-sm md:text-base leading-relaxed italic mb-8 pl-4 border-l-4 border-yellow-200 uppercase tracking-tight">
+                    "{event.description}"
+                  </p>
+
+                  <div className="bg-gray-50/50 rounded-2xl p-5 border border-gray-100 flex items-center justify-between mb-8">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Público Confirmado</span>
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-yellow-600" />
+                        <span className="text-lg font-black text-gray-900 tracking-tighter">
+                          {event.participants_count || 0} <span className="text-gray-300 font-medium">/ {event.max_participants}</span>
+                        </span>
+                      </div>
+                    </div>
+                    {participating.includes(event.id) ? (
+                      <div className="bg-green-100 text-green-700 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 shadow-sm">
+                        <CheckCircle2 size={16} /> Confirmado
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleParticipate(event.id)}
+                        disabled={(event.participants_count || 0) >= (event.max_participants || 0)}
+                        className="bg-black text-yellow-400 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:scale-105 active:scale-95 transition-all"
+                      >
+                        {(event.participants_count || 0) >= (event.max_participants || 0) ? 'Esgotado' : 'Participar'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Social Interactions */}
+                <div className="pt-6 border-t border-gray-50 flex items-center gap-6">
+                  <button
+                    onClick={() => handleLike(event.id)}
+                    className={`flex items-center gap-2 group transition-colors ${likedEvents.includes(event.id) ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
+                  >
+                    <Heart size={20} fill={likedEvents.includes(event.id) ? "currentColor" : "none"} className="group-active:scale-125 transition-transform" />
+                    <span className="text-xs font-black">{(event as any).likes_count || 0}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowComments(showComments === event.id ? null : event.id);
+                      if (showComments !== event.id) fetchComments(event.id);
+                    }}
+                    className={`flex items-center gap-2 group transition-colors ${showComments === event.id ? 'text-black' : 'text-gray-400 hover:text-black'}`}
+                  >
+                    <MessageCircle size={20} />
+                    <span className="text-xs font-black">{(event as any).comments_count || 0}</span>
+                  </button>
+                </div>
+
+                {/* Comments Panel */}
+                {showComments === event.id && (
+                  <div className="mt-6 pt-6 border-t border-gray-100 animate-in slide-in-from-top-2">
+                    <div className="max-h-40 overflow-y-auto space-y-4 mb-4 scrollbar-hide">
+                      {eventComments.length > 0 ? eventComments.map(c => (
+                        <div key={c.id} className="flex gap-3">
+                          <img src={c.author?.avatar_url || 'https://via.placeholder.com/150'} className="w-6 h-6 rounded-lg object-cover" />
+                          <div className="flex-1">
+                            <span className="text-[10px] font-black text-gray-900">@{c.author?.username}</span>
+                            <p className="text-[11px] text-gray-600 leading-tight">{c.content}</p>
+                          </div>
+                        </div>
+                      )) : (
+                        <p className="text-center text-[10px] text-gray-300 font-black uppercase tracking-widest py-4">Dúvidas ou sugestões? Comente aqui!</p>
+                      )}
+                    </div>
+                    <form onSubmit={(e) => { e.preventDefault(); handleAddComment(event.id); }} className="flex gap-3">
+                      <input
+                        className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2 rounded-xl text-xs outline-none focus:ring-2 focus:ring-yellow-400 font-bold"
+                        placeholder="Escreva algo..."
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                      />
+                      <button type="submit" className="p-2 bg-black text-yellow-400 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-md">
+                        <Send size={14} />
+                      </button>
+                    </form>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )) : (
-          <div className="text-center py-20 bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
-             <Calendar className="mx-auto text-gray-300 mb-4" size={48} />
-             <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">Nenhum evento agendado</p>
+          ))
+        ) : (
+          <div className="text-center py-32 bg-white rounded-[3rem] border border-gray-100 italic">
+            <Calendar className="mx-auto text-gray-100 mb-6" size={64} />
+            <p className="text-gray-400 font-bold uppercase text-[11px] tracking-[0.3em] px-12 leading-relaxed">Explorando novos roteiros... em breve novos eventos incríveis na Nobel.</p>
           </div>
         )}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 p-2.5 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18} /></button>
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-3 bg-yellow-400 rounded-2xl shadow-lg shadow-yellow-400/20">
-                <Calendar className="text-black" size={20} />
+      {/* Modal de Criação (Admin) */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[20000] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h3 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">Novo Momento</h3>
+                <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Crie uma experiência inesquecível</p>
               </div>
-              <h3 className="text-xl font-black text-gray-900 font-serif">
-                {isAdmin ? 'Novo Evento Nobel' : 'Sugerir Evento'}
-              </h3>
+              <button onClick={() => setShowCreateModal(false)} className="bg-gray-50 p-2 rounded-xl text-gray-400 hover:text-black">
+                <X size={20} />
+              </button>
             </div>
 
-            <div className="space-y-5">
-              <div className="flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-6 group hover:border-yellow-400 transition-colors cursor-pointer relative overflow-hidden aspect-[2/3] w-48 mx-auto" onClick={() => fileInputRef.current?.click()}>
-                {loading ? (
-                  <Loader2 className="animate-spin text-yellow-500" size={24} />
-                ) : newEvent.image_url ? (
-                  <img src={newEvent.image_url} className="absolute inset-0 w-full h-full object-cover" />
-                ) : (
+            <form onSubmit={handleCreateEvent} className="space-y-6">
+              {/* Image Selection */}
+              <div className="relative aspect-[16/9] bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200 overflow-hidden group">
+                {newEvent.image_url ? (
                   <>
-                    <Camera className="text-gray-400 group-hover:text-yellow-500 transition-colors mb-1" size={32} />
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest text-center">Clique para enviar o Convite (Retrato)</span>
+                    <img src={newEvent.image_url} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setNewEvent({ ...newEvent, image_url: '' })}
+                      className="absolute top-4 right-4 bg-black/80 text-white p-2 rounded-xl hover:bg-red-500 transition-colors shadow-2xl"
+                    >
+                      <X size={16} />
+                    </button>
                   </>
+                ) : (
+                  <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors gap-3">
+                    <div className="bg-white p-4 rounded-full shadow-lg text-yellow-600">
+                      {uploadingImage ? <Clock className="animate-spin" size={24} /> : <Camera size={24} />}
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Arte de Divulgação (Portrait)</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                  </label>
                 )}
-                <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
               </div>
 
               <div className="space-y-4">
-                <div className="relative">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-1 block">Título do Evento</label>
-                  <input 
-                    className="w-full px-5 py-4 bg-white text-black border-2 border-gray-100 rounded-xl outline-none font-bold placeholder:text-gray-300 focus:border-yellow-400 transition-all shadow-sm" 
-                    placeholder="Ex: Noite de Autógrafos" 
-                    value={newEvent.title} 
-                    onChange={e => setNewEvent({...newEvent, title: e.target.value})} 
-                  />
-                </div>
-                
+                <input
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm text-black"
+                  placeholder="Nome do Evento"
+                  value={newEvent.title}
+                  onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
+                  required
+                />
+                <textarea
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none text-sm min-h-[120px] text-black italic"
+                  placeholder="Conte-nos o que espera os leitores..."
+                  value={newEvent.description}
+                  onChange={e => setNewEvent({ ...newEvent, description: e.target.value })}
+                  required
+                />
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-1 block">Data</label>
-                    <input className="w-full px-5 py-4 bg-white text-black border-2 border-gray-100 rounded-xl outline-none font-bold placeholder:text-gray-300 focus:border-yellow-400 transition-all shadow-sm" placeholder="Ex: 20 Out" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-600" size={16} />
+                    <input
+                      type="datetime-local"
+                      className="w-full pl-12 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-xs text-black"
+                      value={newEvent.date ? new Date(newEvent.date).toISOString().slice(0, 16) : ''}
+                      onChange={e => setNewEvent({ ...newEvent, date: new Date(e.target.value).toISOString() })}
+                      required
+                    />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-1 block">Hora</label>
-                    <input className="w-full px-5 py-4 bg-white text-black border-2 border-gray-100 rounded-xl outline-none font-bold placeholder:text-gray-300 focus:border-yellow-400 transition-all shadow-sm" placeholder="Ex: 18:30" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} />
+                  <div className="relative">
+                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-600" size={16} />
+                    <input
+                      type="number"
+                      className="w-full pl-12 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm text-black"
+                      placeholder="Vagas"
+                      value={newEvent.max_participants}
+                      onChange={e => setNewEvent({ ...newEvent, max_participants: parseInt(e.target.value) })}
+                      required
+                    />
                   </div>
                 </div>
-
-                <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-1 block">Local</label>
-                  <input className="w-full px-5 py-4 bg-white text-black border-2 border-gray-100 rounded-xl outline-none font-bold placeholder:text-gray-300 focus:border-yellow-400 transition-all shadow-sm" placeholder="Ex: Rua 16 de Março, 99" value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})} />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-1 block">Descrição Curta</label>
-                  <textarea className="w-full px-5 py-4 bg-white text-black border-2 border-gray-100 rounded-xl outline-none resize-none font-medium placeholder:text-gray-300 focus:border-yellow-400 transition-all shadow-sm" placeholder="Conte um pouco sobre o evento..." rows={3} value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} />
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-600" size={16} />
+                  <input
+                    className="w-full pl-12 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm text-black"
+                    placeholder="Local (Ex: Ala Nobel Café)"
+                    value={newEvent.location}
+                    onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
+                    required
+                  />
                 </div>
               </div>
 
-              <button 
-                onClick={isAdmin ? handleAddEvent : handleSuggestEvent}
-                disabled={loading}
-                className="w-full bg-black text-yellow-400 font-black py-5 rounded-2xl uppercase tracking-widest text-[10px] shadow-xl hover:scale-105 transition-all active:scale-95"
-              >
-                {loading ? 'Processando...' : isAdmin ? 'Salvar Evento' : 'Enviar Sugestão'}
-              </button>
-            </div>
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="submit"
+                  disabled={uploadingImage}
+                  className="flex-1 bg-black text-yellow-400 py-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {uploadingImage ? 'Enviando Foto...' : 'Publicar Evento'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
 
-export default Events;
+export default EventsView;

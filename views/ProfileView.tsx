@@ -5,13 +5,13 @@ import { User, Book, Tag, Camera, Loader2, ArrowLeft, UserPlus, UserMinus, Troph
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { Profile, Post } from '../types';
 import PostCard from '../components/PostCard';
+import ConfirmModal from '../components/ConfirmModal';
+import { followUser, unfollowUser, isFollowingUser } from '../src/services/socialService';
 
 interface ProfileViewProps {
   currentUserId: string;
   currentProfile: Profile | null;
 }
-
-const FOLLOW_KEY = 'nobel_conecta_following';
 
 const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile }) => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +23,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
   const [uploading, setUploading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
 
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'delete_account' | 'delete_post' | null;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { },
+    type: null
+  });
+
   const isOwnProfile = currentUserId === id;
 
   useEffect(() => {
@@ -32,36 +46,33 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     }
   }, [id, currentUserId]);
 
-  const checkFollowingStatus = (targetId: string) => {
-    const saved = localStorage.getItem(FOLLOW_KEY);
-    if (saved) {
-      const following = JSON.parse(saved) as string[];
-      setIsFollowing(following.includes(targetId));
-    }
+  const checkFollowingStatus = async (targetId: string) => {
+    if (!currentUserId || targetId === currentUserId) return;
+    const following = await isFollowingUser(currentUserId, targetId);
+    setIsFollowing(following);
   };
 
-  const handleToggleFollow = () => {
-    if (!id) return;
-    const saved = localStorage.getItem(FOLLOW_KEY);
-    let following: string[] = saved ? JSON.parse(saved) : [];
+  const handleToggleFollow = async () => {
+    if (!id || !currentUserId) return;
 
-    if (isFollowing) {
-      following = following.filter(fid => fid !== id);
+    const wasFollowing = isFollowing;
+    setIsFollowing(!wasFollowing); // Optimistic update
+
+    let success = false;
+    if (wasFollowing) {
+      success = await unfollowUser(currentUserId, id);
     } else {
-      following.push(id);
+      success = await followUser(currentUserId, id);
     }
 
-    localStorage.setItem(FOLLOW_KEY, JSON.stringify(following));
-    setIsFollowing(!isFollowing);
+    if (!success) {
+      setIsFollowing(wasFollowing); // Revert on failure
+      alert('Erro ao processar solicitação.');
+    }
   };
 
   const fetchData = async (userId: string) => {
     setLoading(true);
-    
-    // Timeout de segurança para não travar a tela
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 4000);
 
     if (!isSupabaseConfigured) {
       setTimeout(() => {
@@ -72,16 +83,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
           role: userId === 'admin-user' ? 'admin' : 'user',
           bio: 'Apaixonado pela história de Petrópolis e por literatura russa.',
           favorite_genres: ['Clássicos', 'História'],
-          reading_now: 'Memórias Póstumas de Brás Cubas'
+          reading_now: 'Memórias Póstumas de Brás Cubas',
+          points: 1250,
+          created_at: new Date().toISOString()
         };
         setProfile(demoProfile);
         setEditForm(demoProfile);
-        
-        const allPosts = JSON.parse(localStorage.getItem('nobel_conecta_demo_posts') || '[]');
-        const creativePosts = JSON.parse(localStorage.getItem('nobel_conecta_creative_posts') || '[]');
-        setPosts([...allPosts, ...creativePosts].filter((p: Post) => p.user_id === userId));
+        setPosts([]);
         setLoading(false);
-        clearTimeout(timeout);
       }, 500);
       return;
     }
@@ -108,7 +117,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
       console.error('Error fetching profile data:', err);
     } finally {
       setLoading(false);
-      clearTimeout(timeout);
     }
   };
 
@@ -165,69 +173,54 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     }
   };
 
-  const handleDeleteAccount = async () => {
-    const confirmed = window.confirm("⚠️ ATENÇÃO: Você tem certeza que deseja excluir sua conta permanentemente? Esta ação não pode ser desfeita e você perderá todos os seus pontos, publicações e conquistas.");
-    
-    if (!confirmed) return;
-
-    setLoading(true);
-    try {
-      if (!isSupabaseConfigured) {
-        // Modo Demo
-        localStorage.removeItem('nobel_demo_session');
-        // Limpar posts do usuário no localStorage
-        const allPosts = JSON.parse(localStorage.getItem('nobel_conecta_demo_posts') || '[]');
-        const creativePosts = JSON.parse(localStorage.getItem('nobel_conecta_creative_posts') || '[]');
-        localStorage.setItem('nobel_conecta_demo_posts', JSON.stringify(allPosts.filter((p: any) => p.user_id !== currentUserId)));
-        localStorage.setItem('nobel_conecta_creative_posts', JSON.stringify(creativePosts.filter((p: any) => p.user_id !== currentUserId)));
-      } else {
-        // Modo Real (Supabase)
-        // Deletar perfil (posts devem ter cascade ou ser deletados manualmente se necessário)
-        const { error } = await supabase.from('profiles').delete().eq('id', currentUserId);
-        if (error) throw error;
-        await supabase.auth.signOut();
+  const handleDeleteAccount = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Conta?",
+      message: "⚠️ ATENÇÃO: Você tem certeza que deseja excluir sua conta permanentemente? Esta ação não pode ser desfeita e você perderá todos os seus pontos, publicações e conquistas.",
+      type: 'delete_account',
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          if (!isSupabaseConfigured) {
+            // Demo bypass
+          } else {
+            const { error } = await supabase.from('profiles').delete().eq('id', currentUserId);
+            if (error) throw error;
+            await supabase.auth.signOut();
+          }
+          alert("Sua conta foi excluída com sucesso. Sentiremos sua falta!");
+          window.location.href = '/';
+          window.location.reload();
+        } catch (err: any) {
+          alert("Erro ao excluir conta: " + (err.message || "Tente novamente mais tarde."));
+          setLoading(false);
+        }
       }
-      
-      alert("Sua conta foi excluída com sucesso. Sentiremos sua falta!");
-      window.location.href = '#/login';
-      window.location.reload();
-    } catch (err: any) {
-      console.error("Erro ao excluir conta:", err);
-      alert("Erro ao excluir conta: " + (err.message || "Tente novamente mais tarde."));
-      setLoading(false);
-    }
+    });
   };
 
-  const handleDeletePost = async (postId: string) => {
-    console.log('handleDeletePost (Perfil) iniciada para ID:', postId);
-    const confirmed = true;
-    
-    if (!isSupabaseConfigured) {
-      console.log('Modo Demo (Perfil): excluindo localmente...');
-      const allPosts = JSON.parse(localStorage.getItem('nobel_conecta_demo_posts') || '[]');
-      const creativePosts = JSON.parse(localStorage.getItem('nobel_conecta_creative_posts') || '[]');
-      
-      const filteredDemo = allPosts.filter((p: Post) => p.id !== postId);
-      const filteredCreative = creativePosts.filter((p: Post) => p.id !== postId);
-      
-      localStorage.setItem('nobel_conecta_demo_posts', JSON.stringify(filteredDemo));
-      localStorage.setItem('nobel_conecta_creative_posts', JSON.stringify(filteredCreative));
-      setPosts(posts.filter(p => p.id !== postId));
-    } else {
-      try {
-        console.log('Chamando Supabase para deletar post do perfil:', postId);
-        const { error } = await supabase.from('posts').delete().eq('id', postId);
-        if (error) {
-          console.error('Erro do Supabase na exclusão do perfil:', error);
-          throw error;
+  const handleDeletePost = (postId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Publicação?",
+      message: "Tem certeza que deseja apagar esta publicação da sua estante?",
+      type: 'delete_post',
+      onConfirm: async () => {
+        if (!isSupabaseConfigured) {
+          setPosts(posts.filter(p => p.id !== postId));
+        } else {
+          try {
+            const { error } = await supabase.from('posts').delete().eq('id', postId);
+            if (error) throw error;
+            setPosts(posts.filter(p => p.id !== postId));
+          } catch (err: any) {
+            alert('Erro ao excluir publicação: ' + (err.message || 'Acesso negado'));
+          }
         }
-        console.log('Post do perfil deletado com sucesso do Supabase.');
-        setPosts(posts.filter(p => p.id !== postId));
-      } catch (err: any) {
-        console.error('Erro capturado no catch de exclusão do perfil:', err);
-        alert('Erro ao excluir publicação: ' + (err.message || 'Acesso negado'));
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
-    }
+    });
   };
 
   if (loading && !profile) return <div className="p-8 text-center text-gray-400 font-serif italic">Preparando estante...</div>;
@@ -265,27 +258,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Nome Completo</label>
-                    <input className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-black focus:border-black transition-all" value={editForm.full_name || ''} onChange={e => setEditForm({...editForm, full_name: e.target.value})} placeholder="Nome Completo" />
+                    <input className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-black focus:border-black transition-all" value={editForm.full_name || ''} onChange={e => setEditForm({ ...editForm, full_name: e.target.value })} placeholder="Nome Completo" />
                   </div>
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Username (@)</label>
-                    <input className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-black focus:border-black transition-all" value={editForm.username || ''} onChange={e => setEditForm({...editForm, username: e.target.value.replace('@', '').toLowerCase()})} placeholder="username" />
+                    <input className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none font-bold text-black focus:border-black transition-all" value={editForm.username || ''} onChange={e => setEditForm({ ...editForm, username: e.target.value.replace('@', '').toLowerCase() })} placeholder="username" />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Sua Bio</label>
-                  <textarea className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none resize-none text-black focus:border-black transition-all" value={editForm.bio || ''} onChange={e => setEditForm({...editForm, bio: e.target.value})} rows={3} placeholder="Sua bio literária..." />
+                  <textarea className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none resize-none text-black focus:border-black transition-all" value={editForm.bio || ''} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} rows={3} placeholder="Sua bio literária..." />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Lendo Agora</label>
-                    <input className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-black focus:border-black transition-all" value={editForm.reading_now || ''} onChange={e => setEditForm({...editForm, reading_now: e.target.value})} placeholder="Título do livro" />
+                    <input className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-black focus:border-black transition-all" value={editForm.reading_now || ''} onChange={e => setEditForm({ ...editForm, reading_now: e.target.value })} placeholder="Título do livro" />
                   </div>
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Gêneros (separados por vírgula)</label>
-                    <input className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-black focus:border-black transition-all" value={editForm.favorite_genres?.join(', ') || ''} onChange={e => setEditForm({...editForm, favorite_genres: e.target.value.split(',').map(s => s.trim())})} placeholder="Ex: Terror, Romance" />
+                    <input className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-xs text-black focus:border-black transition-all" value={editForm.favorite_genres?.join(', ') || ''} onChange={e => setEditForm({ ...editForm, favorite_genres: e.target.value.split(',').map(s => s.trim()) })} placeholder="Ex: Terror, Romance" />
                   </div>
                 </div>
 
@@ -294,8 +287,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
                     <button onClick={handleUpdate} className="flex-1 bg-black text-yellow-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:scale-105 transition-all">Salvar</button>
                     <button onClick={() => setIsEditing(false)} className="flex-1 bg-gray-100 text-gray-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px]">Cancelar</button>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={handleDeleteAccount}
                     className="w-full mt-4 flex items-center justify-center gap-2 py-3 text-red-500 font-black uppercase tracking-widest text-[8px] hover:bg-red-50 rounded-xl transition-all border border-red-100 group"
                   >
@@ -309,19 +302,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
                 <h2 className="text-3xl font-black text-gray-900 font-serif italic tracking-tight">{profile?.full_name}</h2>
                 <p className="text-yellow-600 font-black text-xs uppercase tracking-[0.2em] mt-2">@{profile?.username}</p>
                 <p className="mt-6 text-gray-500 leading-relaxed text-sm italic max-w-sm mx-auto">"{profile?.bio || "Um leitor curioso de Petrópolis."}"</p>
-                
+
                 <div className="flex flex-wrap gap-4 justify-center mt-10">
                   {isOwnProfile ? (
                     <button onClick={() => setIsEditing(true)} className="px-12 py-4 bg-black text-yellow-400 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all">Editar Perfil</button>
                   ) : (
                     <>
-                      <button 
+                      <button
                         onClick={handleToggleFollow}
                         className={`flex items-center justify-center gap-3 px-12 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing ? 'bg-gray-100 text-gray-400' : 'bg-black text-yellow-400 shadow-xl hover:scale-105 active:scale-95'}`}
                       >
                         {isFollowing ? <><UserMinus size={16} /> Deixar de Seguir</> : <><UserPlus size={16} /> Seguir Leitor</>}
                       </button>
-                      <Link 
+                      <Link
                         to={`/messages/${profile?.id}`}
                         className="flex items-center justify-center gap-3 px-12 py-4 bg-yellow-400 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all"
                       >
@@ -353,8 +346,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
           <Tag className="text-black" size={24} />
           <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Gêneros favoritos</p>
           <p className="text-xs font-black uppercase truncate">
-            {profile?.favorite_genres && profile.favorite_genres.length > 0 
-              ? profile.favorite_genres.join(', ') 
+            {profile?.favorite_genres && profile.favorite_genres.length > 0
+              ? profile.favorite_genres.join(', ')
               : "Explorando"}
           </p>
         </div>
@@ -372,6 +365,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

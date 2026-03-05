@@ -26,9 +26,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
 
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
 
-  const isAdmin = currentProfile?.role === 'admin' || 
-                  currentProfile?.username === 'nobel_oficial' || 
-                  currentProfile?.username === 'nobelpetro';
+  const isAdmin = currentProfile?.role === 'admin' ||
+    currentProfile?.username === 'nobel_oficial' ||
+    currentProfile?.username === 'nobelpetro';
   const isOwner = currentProfile?.id === post.user_id;
 
   useEffect(() => {
@@ -55,9 +55,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
     if (isSupabaseConfigured && post.id) {
       const likesChannel = supabase
         .channel(`post_likes:${post.id}`)
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
           table: 'likes',
           filter: `post_id=eq.${post.id}`
         }, async () => {
@@ -65,7 +65,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
             .from('likes')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
-          
+
           if (!error && count !== null) {
             setLikesCount(count);
           }
@@ -74,9 +74,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
 
       const commentsChannel = supabase
         .channel(`post_comments:${post.id}`)
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
           table: 'comments',
           filter: `post_id=eq.${post.id}`
         }, async () => {
@@ -84,7 +84,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
             .from('comments')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
-          
+
           if (!error && count !== null) {
             setCommentsCount(count);
           }
@@ -124,17 +124,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
 
   const handleLike = async () => {
     if (!currentProfile || isLiking) return;
-    
+
     setIsLiking(true);
     const wasLiked = liked;
     setLiked(!wasLiked);
     setLikesCount(prev => wasLiked ? prev - 1 : prev + 1);
-    
+
     if (isSupabaseConfigured) {
       try {
         if (wasLiked) {
           await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
-          
+
           // Deduct points when unliking to prevent accumulation
           await awardPoints(currentProfile.id, 'like', currentProfile, -1);
         } else {
@@ -149,7 +149,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           if (!existingLike) {
             const { error: insertError } = await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
             if (insertError) throw insertError;
-            
+
             // Ganho de pontos por curtir
             await awardPoints(currentProfile.id, 'like', currentProfile);
 
@@ -168,7 +168,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
             setLiked(true);
           }
         }
-      } catch (err) { 
+      } catch (err) {
         console.error(err);
         // Revert on error
         setLiked(wasLiked);
@@ -244,17 +244,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row w-full relative">
-      
+
       {post.images && post.images.length > 0 ? (
-        <div className="w-full md:w-[40%] aspect-[4/5] md:aspect-square overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
-          <img 
-            src={post.images[0].startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.images[0])}&default=${encodeURIComponent(post.images[0])}` : post.images[0]} 
-            alt="Livro" 
+        <div className="w-full md:w-[45%] aspect-[3/4] md:aspect-[4/5] overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
+          <img
+            src={post.images[0].startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.images[0])}&default=${encodeURIComponent(post.images[0])}` : post.images[0]}
+            alt="Livro"
             crossOrigin="anonymous"
-            className="w-full h-full object-cover transition-transform duration-1000 group-hover/img:scale-110" 
+            className="w-full h-full object-cover object-top transition-transform duration-1000 group-hover/img:scale-110"
           />
           {isClubThought && (
-            <div className="absolute top-2 left-2 bg-black/80 text-yellow-400 text-[7px] font-black uppercase px-2 py-1 rounded-md backdrop-blur-sm">
+            <div className="absolute top-2 left-2 bg-black/80 text-yellow-400 text-[10px] font-black uppercase px-2 py-1 rounded-md backdrop-blur-sm">
               Análise de Clube
             </div>
           )}
@@ -262,21 +262,21 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
       ) : isClubThought ? (
         <div className="w-full md:w-[25%] py-4 md:py-0 bg-yellow-50 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-0 px-4 md:px-6 border-b md:border-b-0 md:border-r border-yellow-100 shrink-0">
           <BookOpen className="text-yellow-600" size={24} />
-          <span className="text-[7px] md:text-[8px] font-black text-yellow-800 uppercase tracking-widest text-center">Análise do Clube</span>
+          <span className="text-[10px] font-black text-yellow-800 uppercase tracking-widest text-center">Análise do Clube</span>
         </div>
       ) : null}
 
       <div className="flex flex-col flex-1 p-3 md:p-5 overflow-hidden">
-        
+
         <div className="flex items-center justify-between mb-2">
           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-2 group/user">
             <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-yellow-50 flex items-center justify-center overflow-hidden border border-yellow-100 group-hover/user:border-yellow-400 transition-colors">
               {post.author?.avatar_url ? (
-                <img 
-                  src={post.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.author.avatar_url)}&default=${encodeURIComponent(post.author.avatar_url)}` : post.author.avatar_url} 
-                  alt={post.author.username} 
-                  crossOrigin="anonymous" 
-                  className="w-full h-full object-cover" 
+                <img
+                  src={post.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.author.avatar_url)}&default=${encodeURIComponent(post.author.avatar_url)}` : post.author.avatar_url}
+                  alt={post.author.username}
+                  crossOrigin="anonymous"
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 <UserIcon className="text-yellow-700" size={14} />
@@ -290,12 +290,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
             </div>
           </Link>
           {(isAdmin || isOwner) && (
-            <button 
-              onClick={async (e) => { 
+            <button
+              onClick={async (e) => {
                 console.log('Botão de excluir clicado no PostCard. ID:', post.id);
                 e.preventDefault();
-                e.stopPropagation(); 
-                if(onDelete) {
+                e.stopPropagation();
+                if (onDelete) {
                   console.log('Chamando onDelete prop...');
                   try {
                     await onDelete(post.id);
@@ -306,7 +306,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
                 } else {
                   console.warn('onDelete prop não fornecida para o PostCard!');
                 }
-              }} 
+              }}
               className="bg-red-500 text-white p-2 md:p-2.5 transition-all rounded-lg md:rounded-xl shadow-lg hover:scale-110 active:scale-95 z-10"
               title="Excluir Publicação"
             >
@@ -339,7 +339,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
               <Heart size={18} md:size={20} fill={liked ? "currentColor" : "none"} strokeWidth={liked ? 0 : 2} />
               <span className="text-[11px] md:text-[12px] font-black">{likesCount}</span>
             </button>
-            <button 
+            <button
               onClick={() => setShowComments(!showComments)}
               className={`flex items-center gap-1 transition-colors ${showComments ? 'text-black' : 'text-gray-400'}`}
             >
@@ -348,7 +348,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
               {showComments ? <ChevronUp size={12} md:size={14} /> : <ChevronDown size={12} md:size={14} />}
             </button>
             <div className="flex items-center gap-2 ml-auto">
-              <button 
+              <button
                 onClick={handleShare}
                 className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors"
                 title="Compartilhar Link"
@@ -368,13 +368,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
                     <span className="text-[11px] md:text-[12px] text-gray-700 flex-1 leading-tight">{c.content}</span>
                   </div>
                 )) : (
-                  <p className="text-[9px] md:text-[10px] text-gray-300 font-bold uppercase tracking-widest text-center py-1.5">Sem comentários ainda</p>
+                  <p className="text-[10px] md:text-[11px] text-gray-300 font-bold uppercase tracking-widest text-center py-1.5">Sem comentários ainda</p>
                 )}
               </div>
               <form onSubmit={handleAddComment} className="flex gap-1">
-                <input 
-                  className="flex-1 bg-white border border-gray-300 text-[12px] text-black px-2 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-400" 
-                  placeholder="Comentar..." 
+                <input
+                  className="flex-1 bg-white border border-gray-300 text-[12px] text-black px-2 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-400"
+                  placeholder="Comentar..."
                   value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                 />

@@ -1,364 +1,366 @@
 
 import React, { useState, useEffect } from 'react';
-import { Shield, ShoppingBag, MessageSquare, Users, Trash2, Plus, ExternalLink, AlertTriangle, UserCheck, ShieldAlert, Phone, Save } from 'lucide-react';
-import { Profile, Post, Book } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { Link } from 'react-router-dom';
+import { Profile, Post, Book } from '../types';
+import {
+  Users,
+  Settings,
+  Shield,
+  UserPlus,
+  Trash2,
+  Search,
+  BookOpen,
+  Ticket,
+  BarChart3,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  X,
+  Search as SearchIcon,
+  Crown,
+  Plus
+} from 'lucide-react';
+import { useAdmin } from '../src/hooks/useAdmin';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface AdminDashboardProps {
   profile: Profile | null;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [books, setBooks] = useState<Book[]>([]);
+  const isAdmin = useAdmin(profile);
+  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop'>('stats');
   const [users, setUsers] = useState<Profile[]>([]);
+  const [shops, setShops] = useState<any[]>([]); // To manage shop books directly
   const [loading, setLoading] = useState(true);
-  const [whatsappNumber, setWhatsappNumber] = useState('5524999999999');
-
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const [searchQuery, setSearchQuery] = useState('');
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
 
   useEffect(() => {
-    const savedNumber = localStorage.getItem('nobel_conecta_whatsapp');
-    if (savedNumber) setWhatsappNumber(savedNumber);
-    
     if (isAdmin) {
       fetchData();
     }
   }, [isAdmin]);
 
-  const handleSaveWhatsapp = () => {
-    const cleanNumber = whatsappNumber.replace(/\D/g, '');
-    localStorage.setItem('nobel_conecta_whatsapp', cleanNumber);
-    setWhatsappNumber(cleanNumber);
-    alert('Número do WhatsApp atualizado com sucesso!');
-  };
-
   const fetchData = async () => {
-    setLoading(true);
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Em modo demo, pegamos do localStorage
-      if (!isSupabaseConfigured) {
-        const savedPosts = localStorage.getItem('nobel_conecta_demo_posts');
-        const savedBooks = localStorage.getItem('nobel_conecta_shop_books');
-        
-        // Simulação de usuários para o modo demo
-        const demoUsers: Profile[] = [
-          { id: '1', username: 'maria_leitora', full_name: 'Maria Silva', role: 'user', favorite_genres: ['Romance'], reading_now: 'Orgulho e Preconceito' },
-          { id: '2', username: 'pedro_livros', full_name: 'Pedro Santos', role: 'user', favorite_genres: ['Ficção'], reading_now: '1984' },
-          { id: 'admin-user', username: 'nobel_oficial', full_name: 'Equipe Nobel Petrópolis', role: 'admin', favorite_genres: ['Gestão'], reading_now: 'Curadoria' }
-        ];
+      const [{ data: userData }, { data: shopData }] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('shop_books').select('*').order('title', { ascending: true })
+      ]);
 
-        if (savedPosts) setPosts(JSON.parse(savedPosts));
-        if (savedBooks) setBooks(JSON.parse(savedBooks));
-        setUsers(demoUsers);
-      } else {
-        const { data: postsData } = await supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false });
-        if (postsData) setPosts(postsData);
-        
-        const { data: usersData } = await supabase.from('profiles').select('*').order('username', { ascending: true });
-        if (usersData) setUsers(usersData);
-
-        const savedBooks = localStorage.getItem('nobel_conecta_shop_books');
-        if (savedBooks) setBooks(JSON.parse(savedBooks));
-      }
+      setUsers(userData || []);
+      setShops(shopData || []);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching admin data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeletePost = async (postId: string) => {
-    console.log('handleDeletePost (Admin) iniciada para ID:', postId);
-    // Removido window.confirm para evitar travamentos
-    const confirmed = true;
-    
-    if (!isSupabaseConfigured) {
-      console.log('Modo Demo (Admin): excluindo localmente...');
-      const updated = posts.filter(p => p.id !== postId);
-      setPosts(updated);
-      localStorage.setItem('nobel_conecta_demo_posts', JSON.stringify(updated));
-    } else {
-      try {
-        console.log('Chamando Supabase para deletar post via Admin:', postId);
-        const { error } = await supabase.from('posts').delete().eq('id', postId);
-        if (error) {
-          console.error('Erro do Supabase na exclusão Admin:', error);
-          throw error;
+  const handleDeleteUser = async (userId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Banir Usuário?",
+      message: "Tem certeza que deseja apagar este usuário permanentemente? Esta ação removerá todo o histórico de interações.",
+      onConfirm: async () => {
+        try {
+          await supabase.from('profiles').delete().eq('id', userId);
+          fetchData();
+        } catch (err) {
+          alert('Erro ao excluir usuário.');
         }
-        console.log('Post deletado com sucesso via Admin.');
-        fetchData();
-      } catch (err: any) {
-        console.error('Erro capturado no catch de exclusão Admin:', err);
-        alert('Erro ao excluir: ' + (err.message || 'Acesso negado'));
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
-    }
+    });
   };
 
-  const handleDeleteBook = (id: string) => {
-    const updated = books.filter(b => b.id !== id);
-    setBooks(updated);
-    localStorage.setItem('nobel_conecta_shop_books', JSON.stringify(updated));
+  const handleToggleAdmin = async (targetUser: Profile) => {
+    const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Alterar Privilégios?",
+      message: `Deseja realmente ${newRole === 'admin' ? 'promover' : 'remover'} as permissões de administrador deste usuário?`,
+      onConfirm: async () => {
+        try {
+          await supabase.from('profiles').update({ role: newRole }).eq('id', targetUser.id);
+          fetchData();
+        } catch (err) {
+          alert('Erro ao alterar privilégios.');
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
+
+  if (loading && isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-12 h-12 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 font-serif italic">Acessando arquivos confidenciais...</p>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertTriangle size={48} className="text-red-500 mb-4" />
-        <h2 className="text-2xl font-black font-serif">Acesso Negado</h2>
-        <p className="text-gray-500 mt-2">Você não tem permissão para acessar esta área.</p>
-        <Link to="/" className="mt-6 bg-black text-yellow-400 px-6 py-2 rounded-xl font-bold uppercase text-[10px] tracking-widest">Voltar ao Início</Link>
+      <div className="max-w-md mx-auto mt-20 p-10 bg-white rounded-[3rem] border border-red-50 shadow-2xl text-center">
+        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+          <Shield size={40} />
+        </div>
+        <h2 className="text-3xl font-black font-serif italic mb-4 tracking-tighter">Acesso Negado</h2>
+        <p className="text-gray-400 text-sm leading-relaxed mb-8 italic">
+          Desculpe, Curador. Esta área é restrita apenas à administração central da Nobel Petrópolis.
+        </p>
+        <button
+          onClick={() => window.location.href = '/'}
+          className="w-full bg-black text-yellow-400 py-4 rounded-2xl font-black uppercase tracking-widest text-xs"
+        >
+          Voltar para a Segurança
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 mb-24">
-      <div className="flex items-center gap-4 mb-10">
-        <div className="bg-black p-4 rounded-2xl shadow-xl">
-          <Shield className="text-yellow-400" size={32} />
+    <div className="max-w-6xl mx-auto px-4 py-8 md:pt-12 pb-24">
+      {/* Admin Header */}
+      <div className="bg-black rounded-[3rem] p-12 mb-10 text-white relative overflow-hidden shadow-2xl border-4 border-yellow-400/20">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-yellow-400 p-2.5 rounded-2xl">
+                <Shield className="text-black" size={24} />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black font-serif italic tracking-tighter">Centro de Controle</h1>
+            </div>
+            <p className="text-gray-400 text-sm max-w-sm leading-relaxed italic">
+              Bem-vindo, Administrador. Aqui você gerencia a ecossistema Nobel Conecta: usuários, recompensas e métricas vitais.
+            </p>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-white/5 backdrop-blur-md px-6 py-4 rounded-3xl border border-white/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400 mb-1">Total Usuários</p>
+              <p className="text-3xl font-black tracking-tighter font-serif italic">{users.length}</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md px-6 py-4 rounded-3xl border border-white/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400 mb-1">Livros no Shop</p>
+              <p className="text-3xl font-black tracking-tighter font-serif italic">{shops.length}</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 font-serif tracking-tight">Painel de Controle</h1>
-          <p className="text-gray-400 font-bold uppercase tracking-[0.2em] text-[10px]">Comunidade Petrópolis literária</p>
-        </div>
+
+        {/* Background Decoration */}
+        <Settings className="absolute -right-10 -bottom-10 text-white/5 rotate-12" size={300} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-white p-6 rounded-[2rem] border-2 border-gray-50 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><MessageSquare size={24} /></div>
-            <span className="text-2xl font-black font-serif">{posts.length}</span>
-          </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total de Postagens</p>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] border-2 border-gray-50 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-50 text-green-600 rounded-2xl"><ShoppingBag size={24} /></div>
-            <span className="text-2xl font-black font-serif">{books.length}</span>
-          </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Livros na Vitrine</p>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] border-2 border-gray-50 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-yellow-50 text-yellow-600 rounded-2xl"><Users size={24} /></div>
-            <span className="text-2xl font-black font-serif">Ativo</span>
-          </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status do Sistema</p>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-2 mb-10 bg-gray-100 p-2 rounded-[2rem] max-w-lg mx-auto md:mx-0">
+        <button
+          onClick={() => setActiveTab('stats')}
+          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <BarChart3 size={16} /> Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'users' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <Users size={16} /> Usuários
+        </button>
+        <button
+          onClick={() => setActiveTab('shop')}
+          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'shop' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <BookOpen size={16} /> Loja Shop
+        </button>
       </div>
 
-      <div className="space-y-12">
-        {/* Moderação de Conteúdo */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-black font-serif text-gray-900">Moderação de Conteúdo</h2>
-            <Link to="/" className="text-[10px] font-black uppercase text-gray-400 hover:text-black flex items-center gap-2">Ver no Feed <ExternalLink size={12} /></Link>
-          </div>
-          
-          <div className="bg-white border-2 border-gray-50 rounded-[2.5rem] overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50">
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Autor</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Conteúdo</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {posts.slice(0, 10).map(post => (
-                  <tr key={post.id} className="hover:bg-gray-50/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-gray-100 overflow-hidden">
-                          {post.author?.avatar_url && <img src={post.author.avatar_url} className="w-full h-full object-cover" />}
-                        </div>
-                        <span className="text-xs font-black">@{post.author?.username}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-xs text-gray-600 line-clamp-1 italic">"{post.content}"</p>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleDeletePost(post.id)}
-                        className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Gestão da Vitrine */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-black font-serif text-gray-900">Gestão da Vitrine</h2>
-            <Link to="/shop" className="text-[10px] font-black uppercase text-gray-400 hover:text-black flex items-center gap-2">Ver Vitrine <ExternalLink size={12} /></Link>
-          </div>
-          
-          <div className="bg-white border-2 border-gray-50 rounded-[2.5rem] overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50">
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Livro</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Preço</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {books.map(book => (
-                  <tr key={book.id} className="hover:bg-gray-50/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-12 rounded-lg bg-gray-100 overflow-hidden">
-                          <img src={book.cover_url} className="w-full h-full object-cover" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-black">{book.title}</p>
-                          <p className="text-[9px] text-gray-400 font-bold uppercase">{book.author}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-xs font-black text-yellow-600">{book.price}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleDeleteBook(book.id)}
-                        className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Gestão de Usuários */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-black font-serif text-gray-900">Gestão de Usuários</h2>
-            <span className="text-[10px] font-black uppercase text-gray-400">{users.length} Leitores Cadastrados</span>
-          </div>
-          
-          <div className="bg-white border-2 border-gray-50 rounded-[2.5rem] overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/50">
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Leitor</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Cargo</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest">Lendo Agora</th>
-                  <th className="px-6 py-4 text-[9px] font-black uppercase text-gray-400 tracking-widest text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {users.map(u => (
-                  <tr key={u.id} className="hover:bg-gray-50/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-gray-100 overflow-hidden flex items-center justify-center">
-                          {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <Users size={20} className="text-gray-300" />}
-                        </div>
-                        <div>
-                          <p className="text-xs font-black text-gray-900">{u.full_name}</p>
-                          <p className="text-[10px] text-gray-400 font-bold">@{u.username}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${u.role === 'admin' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {u.role === 'admin' ? 'Administrador' : 'Leitor'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-[10px] text-gray-500 font-medium italic truncate max-w-[150px]">
-                        {u.reading_now || 'Nenhum livro no momento'}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          title="Ver Perfil"
-                          className="p-2 text-gray-300 hover:text-black transition-colors"
-                        >
-                          <ExternalLink size={16} />
-                        </button>
-                        {u.role !== 'admin' && (
-                          <button 
-                            title="Bloquear Usuário"
-                            className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                          >
-                            <ShieldAlert size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Atalhos Rápidos */}
-        <section>
-          <h2 className="text-xl font-black font-serif text-gray-900 mb-6">Ações Rápidas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link to="/shop" className="flex items-center justify-between p-6 bg-black text-yellow-400 rounded-2xl hover:scale-[1.02] transition-all shadow-lg group">
-              <div className="flex items-center gap-4">
-                <Plus size={24} />
-                <span className="font-black uppercase tracking-widest text-xs">Adicionar Livro à Vitrine</span>
+      <div className="grid grid-cols-1 gap-8">
+        {activeTab === 'users' && (
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-8 border-b border-gray-50 flex items-center justify-between">
+              <h3 className="text-xl font-black font-serif italic tracking-tight">Comunidade Nobel</h3>
+              <div className="relative">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Buscar usuário..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-gray-50 border-none rounded-2xl pl-12 pr-6 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-400 transition-all w-64"
+                />
               </div>
-              <ShoppingBag className="opacity-20 group-hover:opacity-100 transition-opacity" />
-            </Link>
-            <Link to="/events" className="flex items-center justify-between p-6 bg-yellow-400 text-black rounded-2xl hover:scale-[1.02] transition-all shadow-lg group">
-              <div className="flex items-center gap-4">
-                <Plus size={24} />
-                <span className="font-black uppercase tracking-widest text-xs">Criar Novo Evento</span>
-              </div>
-              <Users className="opacity-20 group-hover:opacity-100 transition-opacity" />
-            </Link>
-          </div>
-        </section>
+            </div>
 
-        {/* Configurações da Loja */}
-        <section className="bg-gray-50 p-8 rounded-[2.5rem] border border-gray-100">
-          <div className="flex items-center gap-3 mb-6">
-            <Phone className="text-gray-400" size={20} />
-            <h2 className="text-xl font-black font-serif text-gray-900">Configurações da Loja</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Perfil</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Email</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Pontos</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Cargo</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {users
+                    .filter(u => u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(u => (
+                      <tr key={u.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <img
+                              src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`}
+                              className="w-10 h-10 rounded-xl border-2 border-gray-100"
+                              alt=""
+                            />
+                            <div>
+                              <p className="font-black text-gray-900">@{u.username}</p>
+                              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Registrado em {new Date(u.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5 text-sm font-medium text-gray-500">{u.email}</td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+                            <span className="font-black text-gray-900">{u.points || 0}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-black text-yellow-400' : 'bg-gray-100 text-gray-400'
+                            }`}>
+                            {u.role === 'admin' ? 'Administrador' : 'Leitor'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleToggleAdmin(u)}
+                              className="p-2.5 bg-gray-50 text-gray-400 rounded-xl hover:bg-black hover:text-white transition-all shadow-sm"
+                              title={u.role === 'admin' ? 'Remover Admin' : 'Dar Admin'}
+                            >
+                              <Shield size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id)}
+                              className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                              title="Excluir Usuário"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="max-w-md">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Número do WhatsApp (com DDD)</label>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                value={whatsappNumber}
-                onChange={(e) => setWhatsappNumber(e.target.value)}
-                placeholder="Ex: 5524988887777"
-                className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-sm focus:border-black transition-all"
-              />
-              <button 
-                onClick={handleSaveWhatsapp}
-                className="bg-black text-yellow-400 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:scale-105 transition-all"
-              >
-                <Save size={14} /> Salvar
+        )}
+
+        {activeTab === 'stats' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mb-6">
+                <Users size={24} />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Engajamento</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">Alto</h4>
+              <p className="text-[10px] text-green-500 font-bold">+12% esta semana</p>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-2xl flex items-center justify-center mb-6">
+                <Ticket size={24} />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Resgates Ativos</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">48</h4>
+              <p className="text-[10px] text-gray-400 font-bold">Aguardando retirada</p>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-2xl flex items-center justify-center mb-6">
+                <Crown size={24} />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Membros VIP</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">15</h4>
+              <p className="text-[10px] text-yellow-600 font-bold">+2 novos hoje</p>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <div className="w-12 h-12 bg-green-50 text-green-500 rounded-2xl flex items-center justify-center mb-6">
+                <Calendar size={24} />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Eventos Ativos</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">3</h4>
+              <p className="text-[10px] text-gray-400 font-bold">Próximo: Amanhã</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'shop' && (
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-black font-serif italic tracking-tight">Estoque da Loja Nobel</h3>
+              <button className="bg-black text-yellow-400 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 hover:scale-105 transition-all">
+                <Plus size={16} /> Novo Livro no Shop
               </button>
             </div>
-            <p className="text-[9px] text-gray-400 mt-2 italic">* Use o formato: Código do País + DDD + Número (ex: 55 24 9...) sem espaços ou traços.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {shops.map(book => (
+                <div key={book.id} className="bg-gray-50 rounded-3xl p-6 flex items-start gap-4 border border-transparent hover:border-yellow-200 transition-all group">
+                  <div className="w-20 h-28 bg-gray-200 rounded-xl overflow-hidden shadow-md shrink-0">
+                    <img src={book.image_url} className="w-full h-full object-cover" alt="" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-black text-gray-900 leading-tight mb-1">{book.title}</h4>
+                    <p className="text-[10px] text-gray-400 font-bold italic mb-4">{book.author}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-sm">R$ {book.price}</span>
+                      <div className="flex items-center gap-1">
+                        <button className="p-2 text-gray-300 hover:text-gray-900"><Settings size={14} /></button>
+                        <button className="p-2 text-red-100 hover:text-red-500"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </section>
+        )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

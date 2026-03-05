@@ -13,23 +13,22 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
   const location = useLocation();
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const isAdmin = profile?.role === 'admin' ||
+    profile?.username === 'nobel_oficial' ||
+    profile?.username === 'nobelpetro';
 
   const MobileNavLink = ({ to, icon: Icon, label }: any) => {
     const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
     return (
-      <Link 
-        to={to} 
-        className={`flex flex-col items-center justify-center transition-all group flex-1 ${
-          isActive ? 'text-black' : 'text-gray-400'
-        }`}
+      <Link
+        to={to}
+        className={`flex flex-col items-center justify-center transition-all group flex-1 ${isActive ? 'text-black' : 'text-gray-400'
+          }`}
       >
         <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'bg-yellow-400 shadow-md' : ''}`}>
           <Icon size={20} strokeWidth={isActive ? 3 : 2} className={isActive ? 'text-black' : 'text-gray-400'} />
         </div>
-        <span className={`text-[9px] mt-1 font-black uppercase tracking-tighter ${isActive ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
+        <span className={`text-[10px] sm:text-xs mt-1 font-black uppercase tracking-tighter ${isActive ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
       </Link>
     );
   };
@@ -37,14 +36,13 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
   const DesktopNavLink = ({ to, icon: Icon, label }: any) => {
     const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
     return (
-      <Link 
-        to={to} 
-        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all group mb-1 border-2 ${
-          isActive ? 'bg-black text-yellow-400 border-black shadow-lg' : 'text-gray-500 border-transparent hover:bg-gray-50 hover:text-black'
-        }`}
+      <Link
+        to={to}
+        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all group mb-1 border-2 ${isActive ? 'bg-black text-yellow-400 border-black shadow-lg' : 'text-gray-500 border-transparent hover:bg-gray-50 hover:text-black'
+          }`}
       >
         <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-        <span className={`font-black uppercase tracking-widest text-[9px] ${isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}>
+        <span className={`font-black uppercase tracking-widest text-[11px] ${isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}>
           {label}
         </span>
         {isActive && <ArrowRight size={14} className="ml-auto animate-pulse" />}
@@ -61,7 +59,7 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
             <BookOpen className="text-yellow-400" size={18} />
           </Link>
         </div>
-        
+
         <Link to="/" className="flex flex-col items-center">
           <h1 className="text-2xl font-black text-gray-900 tracking-tighter font-serif leading-none">
             Nobel
@@ -91,11 +89,11 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
           </Link>
           <div className="h-1 w-16 bg-gray-100 rounded-full mt-6" />
         </div>
-        
+
         {/* Menu Rolável */}
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-0.5">
-            <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.3em] mb-2 ml-3">Menu Principal</p>
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em] mb-2 ml-3">Menu Principal</p>
             <DesktopNavLink to="/" icon={Home} label="Início" />
             <DesktopNavLink to="/clubs" icon={Users} label="Clubes Literários" />
             <DesktopNavLink to="/creative" icon={PenTool} label="Mural de Escrita" />
@@ -104,16 +102,16 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
             <DesktopNavLink to="/messages" icon={MessageCircle} label="Mensagens" />
             <DesktopNavLink to="/giveaways" icon={Gift} label="Sorteios" />
             <DesktopNavLink to="/rewards" icon={Ticket} label="Resgate de Pontos" />
-            
+
             {isAdmin && (
               <div className="mt-3 pt-3 border-t border-gray-50">
-                <p className="text-[8px] font-black text-red-400 uppercase tracking-[0.3em] mb-2 ml-3">Administração</p>
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-[0.3em] mb-2 ml-3">Administração</p>
                 <DesktopNavLink to="/admin" icon={Shield} label="Painel Admin" />
               </div>
             )}
 
             <div className="mt-3 pt-3 border-t border-gray-50">
-              <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.3em] mb-2 ml-3">Pessoal</p>
+              <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em] mb-2 ml-3">Pessoal</p>
               <DesktopNavLink to={`/profile/${profile?.id}`} icon={User} label="Minha Estante" />
             </div>
           </div>
@@ -122,24 +120,24 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
         {/* Rodapé Fixo */}
         <div className="p-3 bg-white border-t border-gray-50">
           <div className="flex items-center justify-between mb-3 px-1">
-             <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.3em]">Alertas</p>
-             <NotificationBell profile={profile} />
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Alertas</p>
+            <NotificationBell profile={profile} />
           </div>
           <div className="flex items-center gap-2.5 mb-2 bg-gray-50/80 p-2.5 rounded-xl border border-gray-100">
             <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
-               {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="text-gray-300" />}
+              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="text-gray-300" />}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="font-black text-[9px] text-gray-900 truncate">@{profile?.username || 'leitor'}</p>
+              <p className="font-black text-[11px] text-gray-900 truncate">@{profile?.username || 'leitor'}</p>
               <div className="flex items-center gap-1">
                 <div className="w-1 h-1 rounded-full bg-green-500"></div>
-                <p className="text-[7px] text-gray-400 font-bold uppercase tracking-widest">Online</p>
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Online</p>
               </div>
             </div>
           </div>
-          <button 
-            onClick={onLogout} 
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all font-black uppercase tracking-[0.2em] text-[7px]"
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all font-black uppercase tracking-[0.2em] text-[10px]"
           >
             <LogOut size={12} />
             Sair da Conta
