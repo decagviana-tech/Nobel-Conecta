@@ -22,6 +22,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
 
@@ -32,11 +33,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
 
   useEffect(() => {
     if (showComments) {
-      const key = `comments_${post.id}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        setComments(JSON.parse(saved));
-      } else if (isSupabaseConfigured) {
+      if (isSupabaseConfigured) {
         supabase.from('comments').select('*, author:profiles(*)').eq('post_id', post.id).then(({ data }) => {
           if (data) setComments(data);
         });
@@ -45,12 +42,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   }, [showComments, post.id]);
 
   useEffect(() => {
-    if (post) {
+    if (post && !isLiking) {
       setLiked(post.user_has_liked || false);
       setLikesCount(post.likes_count || 0);
+    }
+    if (post && !isSubmittingComment) {
       setCommentsCount(post.comments_count || 0);
     }
-  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count]);
+  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count, isLiking, isSubmittingComment]);
 
   useEffect(() => {
     if (isSupabaseConfigured && post.id) {
@@ -184,8 +183,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !currentProfile) return;
+    if (!newComment.trim() || !currentProfile || isSubmittingComment) return;
 
+    setIsSubmittingComment(true);
     const commentObj: Comment = {
       id: Math.random().toString(36).substr(2, 9),
       post_id: post.id,
@@ -195,11 +195,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
       author: currentProfile
     };
 
-    const key = `comments_${post.id}`;
     const previousComments = [...comments];
     const updated = [...comments, commentObj];
     setComments(updated);
-    localStorage.setItem(key, JSON.stringify(updated));
     setCommentsCount(prev => prev + 1);
 
     if (isSupabaseConfigured) {
@@ -225,17 +223,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
             `/?search=${encodeURIComponent(post.book_title || '')}`
           );
         }
+        setNewComment('');
       } catch (err) {
         console.error('Erro ao inserir comentário:', err);
         // Revert local state on error
         setComments(previousComments);
         setCommentsCount(prev => Math.max(0, prev - 1));
-        localStorage.setItem(key, JSON.stringify(previousComments));
         alert('Erro ao enviar comentário. Tente novamente.');
-        return;
+      } finally {
+        setIsSubmittingComment(false);
       }
+    } else {
+      setNewComment('');
+      setIsSubmittingComment(false);
     }
-    setNewComment('');
   };
 
   const isCreative = post.type === 'creative';

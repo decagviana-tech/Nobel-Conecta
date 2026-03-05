@@ -23,6 +23,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
 
@@ -30,11 +31,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
 
   useEffect(() => {
     if (showComments) {
-      const key = `comments_${post.id}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        setComments(JSON.parse(saved));
-      } else if (isSupabaseConfigured) {
+      if (isSupabaseConfigured) {
         supabase.from('comments').select('*, author:profiles(*)').eq('post_id', post.id).then(({ data }) => {
           if (data) setComments(data);
         });
@@ -43,20 +40,22 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
   }, [showComments, post.id]);
 
   useEffect(() => {
-    if (post) {
+    if (post && !isLiking) {
       setLiked(post.user_has_liked || false);
       setLikesCount(post.likes_count || 0);
+    }
+    if (post && !isSubmittingComment) {
       setCommentsCount(post.comments_count || 0);
     }
-  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count]);
+  }, [post.id, post.user_has_liked, post.likes_count, post.comments_count, isLiking, isSubmittingComment]);
 
   useEffect(() => {
     if (isSupabaseConfigured && post.id) {
       const likesChannel = supabase
         .channel(`creative_likes:${post.id}`)
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
           table: 'likes',
           filter: `post_id=eq.${post.id}`
         }, async () => {
@@ -64,7 +63,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             .from('likes')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
-          
+
           if (!error && count !== null) {
             setLikesCount(count);
           }
@@ -73,9 +72,9 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
 
       const commentsChannel = supabase
         .channel(`creative_comments:${post.id}`)
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
           table: 'comments',
           filter: `post_id=eq.${post.id}`
         }, async () => {
@@ -83,7 +82,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             .from('comments')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
-          
+
           if (!error && count !== null) {
             setCommentsCount(count);
           }
@@ -99,17 +98,17 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
 
   const handleLike = async () => {
     if (!currentProfile || isLiking) return;
-    
+
     setIsLiking(true);
     const wasLiked = liked;
     setLiked(!wasLiked);
     setLikesCount(prev => wasLiked ? prev - 1 : prev + 1);
-    
+
     if (isSupabaseConfigured) {
       try {
         if (wasLiked) {
           await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
-          
+
           // Deduct points when unliking to prevent accumulation
           await awardPoints(currentProfile.id, 'like', currentProfile, -1);
         } else {
@@ -124,7 +123,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
           if (!existingLike) {
             const { error: insertError } = await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
             if (insertError) throw insertError;
-            
+
             // Ganho de pontos por curtir
             await awardPoints(currentProfile.id, 'like', currentProfile);
 
@@ -143,7 +142,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             setLiked(true);
           }
         }
-      } catch (err) { 
+      } catch (err) {
         console.error(err);
         // Revert on error
         setLiked(wasLiked);
@@ -158,8 +157,9 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !currentProfile) return;
+    if (!newComment.trim() || !currentProfile || isSubmittingComment) return;
 
+    setIsSubmittingComment(true);
     const commentObj: Comment = {
       id: Math.random().toString(36).substr(2, 9),
       post_id: post.id,
@@ -169,11 +169,9 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
       author: currentProfile
     };
 
-    const key = `comments_${post.id}`;
     const previousComments = [...comments];
     const updated = [...comments, commentObj];
     setComments(updated);
-    localStorage.setItem(key, JSON.stringify(updated));
     setCommentsCount(prev => prev + 1);
 
     if (isSupabaseConfigured) {
@@ -199,17 +197,20 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             `/#/creative?id=${post.id}`
           );
         }
+        setNewComment('');
       } catch (err) {
         console.error('Erro ao inserir comentário:', err);
         // Revert local state on error
         setComments(previousComments);
         setCommentsCount(prev => Math.max(0, prev - 1));
-        localStorage.setItem(key, JSON.stringify(previousComments));
         alert('Erro ao enviar comentário. Tente novamente.');
-        return;
+      } finally {
+        setIsSubmittingComment(false);
       }
+    } else {
+      setNewComment('');
+      setIsSubmittingComment(false);
     }
-    setNewComment('');
   };
 
   const handleShare = async () => {
@@ -258,8 +259,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
           </div>
         </Link>
         {(isAdmin || isOwner) && (
-          <button 
-            onClick={() => onDelete && onDelete(post.id)} 
+          <button
+            onClick={() => onDelete && onDelete(post.id)}
             className="p-3 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all z-10"
             title="Excluir Texto"
           >
@@ -280,7 +281,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             <Heart size={22} fill={liked ? "currentColor" : "none"} strokeWidth={liked ? 0 : 2} />
             <span className="text-xs font-black">{likesCount}</span>
           </button>
-          <button 
+          <button
             onClick={() => setShowComments(!showComments)}
             className={`flex items-center gap-2 transition-colors ${showComments ? 'text-black' : 'text-gray-400 hover:text-black'}`}
           >
@@ -318,9 +319,9 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
               )}
             </div>
             <form onSubmit={handleAddComment} className="flex gap-2">
-              <input 
-                className="flex-1 bg-gray-50 border border-gray-200 text-sm text-black px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-400" 
-                placeholder="Escreva seu comentário..." 
+              <input
+                className="flex-1 bg-gray-50 border border-gray-200 text-sm text-black px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-yellow-400 transition-all placeholder:text-gray-400"
+                placeholder="Escreva seu comentário..."
                 value={newComment}
                 onChange={e => setNewComment(e.target.value)}
               />
