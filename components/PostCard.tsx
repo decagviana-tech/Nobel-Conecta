@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Star, MessageCircle, Heart, Trash2, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Share2 } from 'lucide-react';
+import { Star, MessageCircle, Heart, Trash2, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Share2, Image as ImageIcon, Download, Loader2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
@@ -23,6 +24,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
 
@@ -99,26 +102,109 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
   }, [post.id]);
 
   const handleShare = async () => {
-    const shareData = {
-      title: `Nobel Conecta - ${post.book_title}`,
-      text: `📚 Confira esta resenha de "${post.book_title}" no Nobel Conecta! \n\n"${post.content.substring(0, 100)}..."`,
-      url: window.location.origin + `/?search=${encodeURIComponent(post.book_title)}`
-    };
+    const stars = "⭐".repeat(post.rating || 5);
+    const shareText = `
+┏━━━━━━━━━━━━━━━━━━━━┓
+  NOBEL CONECTA 📚
+┗━━━━━━━━━━━━━━━━━━━━┛
+
+📖 Livro: ${post.book_title}
+👤 Autor: ${post.book_author}
+⭐ Avaliação: ${stars}
+
+"${post.content.substring(0, 150)}${post.content.length > 150 ? '...' : ''}"
+
+✍️ Resenha por: @${post.author?.username}
+
+Confira a resenha completa em:
+`;
+    const shareUrl = window.location.origin + `/?search=${encodeURIComponent(post.book_title || '')}`;
 
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: `Nobel Conecta - ${post.book_title}`,
+          text: shareText,
+          url: shareUrl
+        });
       } catch (err) {
         console.log('Erro ao compartilhar:', err);
       }
     } else {
-      // Fallback: Copiar link
       try {
-        await navigator.clipboard.writeText(shareData.url);
-        alert('Link da resenha copiado para a área de transferência! Agora você pode colar no Instagram ou WhatsApp.');
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        alert('Card de texto e link copiados! Agora você pode compartilhar no WhatsApp ou Instagram.');
       } catch (err) {
         alert('Não foi possível copiar o link.');
       }
+    }
+  };
+
+  const handleShareImage = async () => {
+    if (!cardRef.current || isGeneratingImage) return;
+
+    setIsGeneratingImage(true);
+    try {
+      // Pequeno delay para garantir que imagens foram carregadas e animações pararam
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const options = {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        filter: (node: HTMLElement) => {
+          const isButton = node.tagName === 'BUTTON';
+          const isInteractive = node.classList?.contains('ml-auto') && node.classList?.contains('flex');
+          return !isButton && !isInteractive;
+        },
+        style: {
+          borderRadius: '24px',
+          transform: 'scale(1)',
+        }
+      };
+
+      let dataUrl;
+      try {
+        dataUrl = await toPng(cardRef.current, options);
+      } catch (e) {
+        console.warn('Png generation failed, trying fallback...');
+        dataUrl = await toPng(cardRef.current, { ...options, cacheBust: false });
+      }
+
+      const blob = await (await fetch(dataUrl)).blob();
+      const fileName = `nobel-conecta-${(post.book_title || 'resenha').replace(/\s+/g, '-').toLowerCase()}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Resenha: ${post.book_title}`,
+          text: `Confira minha resenha de ${post.book_title} no Nobel Conecta!`
+        });
+      } else {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        link.click();
+        alert('Imagem gerada e download iniciado!');
+      }
+    } catch (err: any) {
+      console.error('Erro ao gerar imagem:', err);
+      // Fallback: Tentar novamente sem cacheBust se falhar
+      try {
+        const dataUrl = await toPng(cardRef.current, {
+          backgroundColor: '#ffffff',
+          style: { borderRadius: '24px' }
+        });
+        const link = document.createElement('a');
+        link.download = `nobel-conecta-resenha.png`;
+        link.href = dataUrl;
+        link.click();
+      } catch (retryErr) {
+        alert('Não foi possível gerar a imagem devido a restrições de segurança ou conteúdo externo.');
+      }
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
 
@@ -239,11 +325,36 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    if (!currentProfile) return;
+
+    const previousComments = [...comments];
+    const updated = comments.filter(c => c.id !== commentId);
+    setComments(updated);
+    setCommentsCount(prev => Math.max(0, prev - 1));
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('comments')
+          .delete()
+          .eq('id', commentId);
+
+        if (error) throw error;
+      } catch (err) {
+        console.error('Erro ao deletar comentário:', err);
+        setComments(previousComments);
+        setCommentsCount(prev => prev + 1);
+        alert('Erro ao excluir comentário.');
+      }
+    }
+  };
+
   const isCreative = post.type === 'creative';
   const isClubThought = post.type === 'club_thought';
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row w-full relative">
+    <div ref={cardRef} className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row w-full relative">
 
       {post.images && post.images.length > 0 ? (
         <div className="w-full md:w-[45%] aspect-[3/4] md:aspect-[4/5] overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
@@ -349,6 +460,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
             </button>
             <div className="flex items-center gap-2 ml-auto">
               <button
+                onClick={handleShareImage}
+                disabled={isGeneratingImage}
+                className="flex items-center gap-1 text-yellow-600 hover:text-yellow-700 transition-colors"
+                title="Compartilhar como Imagem"
+              >
+                {isGeneratingImage ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} md:size={20} />}
+                <span className="text-[11px] md:text-[12px] font-black">Imagem</span>
+              </button>
+              <button
                 onClick={handleShare}
                 className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors"
                 title="Compartilhar Link"
@@ -362,12 +482,26 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) =
           {showComments && (
             <div className="mt-2 pt-2 border-t border-gray-50 animate-in slide-in-from-top-2 duration-300">
               <div className="max-h-24 md:max-h-32 overflow-y-auto space-y-1.5 mb-2 scrollbar-hide">
-                {comments.length > 0 ? comments.map(c => (
-                  <div key={c.id} className="flex gap-1.5 items-start">
-                    <span className="text-[10px] md:text-[11px] font-black text-black shrink-0">@{c.author?.username}:</span>
-                    <span className="text-[11px] md:text-[12px] text-gray-700 flex-1 leading-tight">{c.content}</span>
-                  </div>
-                )) : (
+                {comments.length > 0 ? comments.map(c => {
+                  const isCommentOwner = currentProfile?.id === c.user_id;
+                  const canDeleteComment = isAdmin || isCommentOwner || isOwner;
+
+                  return (
+                    <div key={c.id} className="flex gap-1.5 items-start group/comment">
+                      <span className="text-[10px] md:text-[11px] font-black text-black shrink-0">@{c.author?.username}:</span>
+                      <span className="text-[11px] md:text-[12px] text-gray-700 flex-1 leading-tight">{c.content}</span>
+                      {canDeleteComment && (
+                        <button
+                          onClick={() => handleDeleteComment(c.id)}
+                          className="flex p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Excluir Comentário"
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                }) : (
                   <p className="text-[10px] md:text-[11px] text-gray-300 font-bold uppercase tracking-widest text-center py-1.5">Sem comentários ainda</p>
                 )}
               </div>

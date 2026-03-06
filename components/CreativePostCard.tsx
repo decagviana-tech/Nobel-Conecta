@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MessageSquare, Share2, Trash2, Quote, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Trash2, Quote, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Image as ImageIcon, Download, Loader2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
@@ -24,6 +25,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
 
@@ -32,7 +35,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
   useEffect(() => {
     if (showComments) {
       if (isSupabaseConfigured) {
-        supabase.from('comments').select('*, author:profiles(*)').eq('post_id', post.id).then(({ data }) => {
+        supabase.from('creative_comments').select('*, author:profiles(*)').eq('post_id', post.id).then(({ data }) => {
           if (data) setComments(data);
         });
       }
@@ -56,11 +59,11 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
-          table: 'likes',
+          table: 'creative_likes',
           filter: `post_id=eq.${post.id}`
         }, async () => {
           const { count, error } = await supabase
-            .from('likes')
+            .from('creative_likes')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
 
@@ -75,11 +78,11 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
-          table: 'comments',
+          table: 'creative_comments',
           filter: `post_id=eq.${post.id}`
         }, async () => {
           const { count, error } = await supabase
-            .from('comments')
+            .from('creative_comments')
             .select('*', { count: 'exact', head: true })
             .eq('post_id', post.id);
 
@@ -107,21 +110,21 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
     if (isSupabaseConfigured) {
       try {
         if (wasLiked) {
-          await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
+          await supabase.from('creative_likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
 
           // Deduct points when unliking to prevent accumulation
           await awardPoints(currentProfile.id, 'like', currentProfile, -1);
         } else {
           // Check if already liked to prevent duplicates
           const { data: existingLike } = await supabase
-            .from('likes')
+            .from('creative_likes')
             .select('id')
             .eq('user_id', currentProfile.id)
             .eq('post_id', post.id)
             .maybeSingle();
 
           if (!existingLike) {
-            const { error: insertError } = await supabase.from('likes').insert({ user_id: currentProfile.id, post_id: post.id });
+            const { error: insertError } = await supabase.from('creative_likes').insert({ user_id: currentProfile.id, post_id: post.id });
             if (insertError) throw insertError;
 
             // Ganho de pontos por curtir
@@ -176,7 +179,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
 
     if (isSupabaseConfigured) {
       try {
-        const { error: insertError } = await supabase.from('comments').insert({
+        const { error: insertError } = await supabase.from('creative_comments').insert({
           post_id: post.id,
           user_id: currentProfile.id,
           content: newComment
@@ -213,31 +216,136 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    if (!currentProfile) return;
+
+    const previousComments = [...comments];
+    const updated = comments.filter(c => c.id !== commentId);
+    setComments(updated);
+    setCommentsCount(prev => Math.max(0, prev - 1));
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('creative_comments')
+          .delete()
+          .eq('id', commentId);
+
+        if (error) throw error;
+      } catch (err) {
+        console.error('Erro ao deletar comentário:', err);
+        setComments(previousComments);
+        setCommentsCount(prev => prev + 1);
+        alert('Erro ao excluir comentário.');
+      }
+    }
+  };
+
   const handleShare = async () => {
-    const shareData = {
-      title: `Nobel Conecta - ${post.title || 'Texto Literário'}`,
-      text: `✍️ Confira este texto autoral de @${post.author?.username} no Nobel Conecta: \n\n"${post.content.substring(0, 100)}..."`,
-      url: window.location.origin + `/#/creative?id=${post.id}`
-    };
+    const shareText = `
+┏━━━━━━━━━━━━━━━━━━━━┓
+  MURAL DE ESCRITA ✍️
+  NOBEL CONECTA
+┗━━━━━━━━━━━━━━━━━━━━┛
+
+✨ "${post.title || 'Escrito Livre'}"
+
+"${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}"
+
+✍️ Por: @${post.author?.username}
+
+Veja o texto completo no Nobel Conecta:
+`;
+    const shareUrl = window.location.origin + `/#/creative?id=${post.id}`;
 
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: `Nobel Conecta - ${post.title || 'Texto Literário'}`,
+          text: shareText,
+          url: shareUrl
+        });
       } catch (err) {
         console.log('Erro ao compartilhar:', err);
       }
     } else {
       try {
-        await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
-        alert('Texto e link copiados para a área de transferência! Agora você pode colar no Instagram ou WhatsApp.');
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        alert('Card de texto e link copiados! Agora você pode compartilhar no WhatsApp ou Instagram.');
       } catch (err) {
         alert('Não foi possível copiar o link.');
       }
     }
   };
 
+  const handleShareImage = async () => {
+    if (!cardRef.current || isGeneratingImage) return;
+
+    setIsGeneratingImage(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const options = {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        filter: (node: HTMLElement) => {
+          const isButton = node.tagName === 'BUTTON';
+          const isInteractive = node.classList?.contains('ml-auto') && node.classList?.contains('flex');
+          return !isButton && !isInteractive;
+        },
+        style: {
+          borderRadius: '40px',
+          transform: 'scale(1)',
+        }
+      };
+
+      let dataUrl;
+      try {
+        dataUrl = await toPng(cardRef.current, options);
+      } catch (retryErr) {
+        dataUrl = await toPng(cardRef.current, { ...options, cacheBust: false });
+      }
+
+      const blob = await (await fetch(dataUrl)).blob();
+      const fileName = `nobel-criativo-${(post.title || 'texto').replace(/\s+/g, '-').toLowerCase()}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Obra: ${post.title || 'Texto Criativo'}`,
+          text: `Confira minha criação no Mural do Nobel Conecta!`
+        });
+      } else {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        link.click();
+        alert('Imagem gerada e download iniciado!');
+      }
+    } catch (err: any) {
+      console.error('Erro ao gerar imagem:', err);
+      try {
+        const dataUrl = await toPng(cardRef.current, {
+          backgroundColor: '#ffffff',
+          style: { borderRadius: '40px' }
+        });
+        const link = document.createElement('a');
+        link.download = `nobel-conecta-criativo.png`;
+        link.href = dataUrl;
+        link.click();
+      } catch (retryErr) {
+        alert('Não foi possível gerar a imagem devido a restrições de segurança ou conteúdo externo.');
+      }
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+
   return (
-    <div className="bg-white rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+    <div ref={cardRef} className="bg-white rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
       <div className="absolute top-0 right-0 p-10 opacity-[0.02] pointer-events-none group-hover:opacity-[0.05] transition-opacity">
         <Quote size={180} />
       </div>
@@ -260,7 +368,13 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
         </Link>
         {(isAdmin || isOwner) && (
           <button
-            onClick={() => onDelete && onDelete(post.id)}
+            onClick={() => {
+              if (onDelete) {
+                onDelete(post.id);
+              } else {
+                console.warn('onDelete prop not provided to CreativePostCard');
+              }
+            }}
             className="p-3 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all z-10"
             title="Excluir Texto"
           >
@@ -290,6 +404,15 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             {showComments ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
           <div className="flex items-center gap-3 ml-auto">
+            <button
+              onClick={handleShareImage}
+              disabled={isGeneratingImage}
+              className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700 transition-colors"
+              title="Compartilhar como Imagem"
+            >
+              {isGeneratingImage ? <Loader2 className="animate-spin" size={22} /> : <ImageIcon size={22} />}
+              <span className="text-xs font-black hidden md:inline">Imagem</span>
+            </button>
             <button onClick={handleShare} className="flex items-center gap-2 text-gray-400 hover:text-black transition-colors" title="Compartilhar Link">
               <Share2 size={22} />
               <span className="text-xs font-black hidden md:inline">Link</span>
@@ -300,21 +423,42 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
         {showComments && (
           <div className="mt-6 pt-6 border-t border-gray-50 animate-in slide-in-from-top-2 duration-300">
             <div className="max-h-40 overflow-y-auto space-y-3 mb-4 scrollbar-hide">
-              {comments.length > 0 ? comments.map(c => (
-                <div key={c.id} className="flex gap-3 items-start">
-                  <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                    {c.author?.avatar_url ? (
-                      <img src={c.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(c.author.avatar_url)}&default=${encodeURIComponent(c.author.avatar_url)}` : c.author.avatar_url} crossOrigin="anonymous" className="w-full h-full object-cover" />
-                    ) : (
-                      <UserIcon size={12} className="text-gray-400" />
-                    )}
+              {comments.length > 0 ? comments.map(c => {
+                const isCommentOwner = currentProfile?.id === c.user_id;
+                const canDeleteComment = isAdmin || isCommentOwner || isOwner;
+
+                return (
+                  <div key={c.id} className="flex gap-3 items-start group/comment">
+                    <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                      {c.author?.avatar_url ? (
+                        <img
+                          src={c.author?.avatar_url || `https://ui-avatars.com/api/?name=${c.author?.username || 'U'}`}
+                          alt={c.author?.username}
+                          crossOrigin="anonymous"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <UserIcon size={12} className="text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] md:text-[12px] font-black text-black">@{c.author?.username}</span>
+                        {canDeleteComment && (
+                          <button
+                            onClick={() => handleDeleteComment(c.id)}
+                            className="flex p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Excluir Comentário"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[12px] md:text-xs text-gray-700 leading-tight mt-0.5">{c.content}</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <span className="text-[11px] md:text-[12px] font-black text-black">@{c.author?.username}</span>
-                    <p className="text-[12px] md:text-xs text-gray-700 leading-tight mt-0.5">{c.content}</p>
-                  </div>
-                </div>
-              )) : (
+                );
+              }) : (
                 <p className="text-[10px] text-gray-300 font-bold uppercase tracking-widest text-center py-4">Sem comentários ainda</p>
               )}
             </div>

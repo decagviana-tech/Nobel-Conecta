@@ -29,9 +29,9 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const isAdmin = profile?.role === 'admin' ||
+    profile?.username === 'nobel_oficial' ||
+    profile?.username === 'nobelpetro';
 
   useEffect(() => {
     fetchBooks();
@@ -65,9 +65,10 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
   };
 
   const handleBuy = (title: string) => {
-    const savedNumber = localStorage.getItem('nobel_conecta_whatsapp') || '5524999999999';
+    // Real Nobel Petrópolis WhatsApp (Landline formatted for WA: 552422358014)
+    const storeNumber = '552422358014';
     const message = encodeURIComponent(`Olá Nobel Petrópolis! Vi o livro "${title}" no Nobel Conecta e gostaria de reservar.`);
-    window.open(`https://wa.me/${savedNumber}?text=${message}`, '_blank');
+    window.open(`https://wa.me/${storeNumber}?text=${message}`, '_blank');
   };
 
   const handleSeeReviews = (title: string) => {
@@ -146,9 +147,9 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
         </div>
         <h2 className="text-2xl md:text-4xl font-black text-gray-900 font-serif tracking-tight">Vitrine Nobel</h2>
         <p className="text-gray-400 mt-1 font-bold uppercase tracking-[0.2em] text-[8px]">Comunidade Petrópolis literária</p>
-        
+
         {isAdmin && (
-          <button 
+          <button
             onClick={() => setShowAddModal(true)}
             className="mt-6 flex items-center gap-2 bg-black text-yellow-400 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-all shadow-lg"
           >
@@ -172,33 +173,33 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
           books.map(book => (
             <div key={book.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col group hover:shadow-lg transition-all">
               <div className="relative aspect-[2/3] overflow-hidden bg-gray-50">
-                 <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                 <div className="absolute bottom-1 right-1 bg-black/80 backdrop-blur-sm text-yellow-400 text-[8px] font-black px-2 py-1 rounded-lg">
+                <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                <div className="absolute bottom-1 right-1 bg-black/80 backdrop-blur-sm text-yellow-400 text-[8px] font-black px-2 py-1 rounded-lg">
                   {book.price}
-                 </div>
-                 {isAdmin && (
-                  <button 
+                </div>
+                {isAdmin && (
+                  <button
                     onClick={() => handleDelete(book.id)}
                     className="absolute top-2 left-2 bg-red-500 text-white p-2 rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all z-10"
                     title="Remover da Vitrine"
                   >
                     <Trash2 size={14} strokeWidth={2.5} />
                   </button>
-                 )}
+                )}
               </div>
               <div className="p-2 flex flex-col flex-1">
                 <h3 className="text-[10px] font-bold text-gray-900 font-serif leading-tight line-clamp-1 mb-0.5">{book.title}</h3>
                 <p className="text-[7px] text-gray-400 mb-2 font-black uppercase tracking-tighter truncate">{book.author}</p>
-                
+
                 <div className="mt-auto space-y-1">
-                  <button 
+                  <button
                     onClick={() => handleBuy(book.title)}
                     className="w-full bg-black text-yellow-400 font-black py-2 rounded-lg flex items-center justify-center gap-1 transition-all hover:bg-gray-800 uppercase tracking-widest text-[7px]"
                   >
                     <MessageCircle size={10} />
                     <span>Reservar</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleSeeReviews(book.title)}
                     className="w-full bg-gray-50 text-gray-400 font-black py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all hover:bg-yellow-50 hover:text-yellow-700 border border-gray-100 uppercase tracking-widest text-[6px]"
                   >
@@ -217,7 +218,7 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
           <div className="bg-white rounded-[2.5rem] w-full max-w-md p-6 md:p-10 shadow-2xl relative max-h-[95vh] overflow-y-auto">
             <button onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16} /></button>
             <h3 className="text-xl font-black text-gray-900 font-serif mb-6">Novo Item na Vitrine</h3>
-            
+
             <div className="space-y-4">
               <div className="flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-4 group hover:border-yellow-400 transition-colors cursor-pointer relative overflow-hidden h-32" onClick={() => fileInputRef.current?.click()}>
                 {uploading ? (
@@ -234,15 +235,15 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
               </div>
 
               <div className="space-y-3">
-                <input className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none font-bold text-sm placeholder:text-gray-300 focus:bg-white focus:border-black transition-all" placeholder="Título" value={newBook.title} onChange={e => setNewBook({...newBook, title: e.target.value})} />
+                <input className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none font-bold text-sm placeholder:text-gray-300 focus:bg-white focus:border-black transition-all" placeholder="Título" value={newBook.title} onChange={e => setNewBook({ ...newBook, title: e.target.value })} />
                 <div className="grid grid-cols-2 gap-3">
-                  <input className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none font-bold text-sm" placeholder="Autor" value={newBook.author} onChange={e => setNewBook({...newBook, author: e.target.value})} />
-                  <input className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none font-bold text-sm" placeholder="Preço" value={newBook.price} onChange={e => setNewBook({...newBook, price: e.target.value})} />
+                  <input className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none font-bold text-sm" placeholder="Autor" value={newBook.author} onChange={e => setNewBook({ ...newBook, author: e.target.value })} />
+                  <input className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none font-bold text-sm" placeholder="Preço" value={newBook.price} onChange={e => setNewBook({ ...newBook, price: e.target.value })} />
                 </div>
-                <textarea className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none resize-none font-medium text-xs" placeholder="Breve frase..." rows={2} value={newBook.description} onChange={e => setNewBook({...newBook, description: e.target.value})} />
+                <textarea className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl outline-none resize-none font-medium text-xs" placeholder="Breve frase..." rows={2} value={newBook.description} onChange={e => setNewBook({ ...newBook, description: e.target.value })} />
               </div>
-              
-              <button 
+
+              <button
                 onClick={handleAddBook}
                 disabled={uploading}
                 className="w-full bg-black text-yellow-400 font-black py-4 rounded-xl uppercase tracking-widest text-[10px] shadow-lg mt-4"

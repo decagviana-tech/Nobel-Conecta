@@ -174,15 +174,12 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
       <div className="space-y-12 pb-24">
         {posts.map(post => (
           <div key={post.id} className="relative group">
-            <CreativePostCard post={post} currentUser={profile} />
-            {(profile?.id === post.user_id || profile?.role === 'admin') && (
-              <button
-                onClick={() => handleDeletePost(post.id)}
-                className="absolute top-6 right-6 p-3 bg-red-50 text-red-500 rounded-2xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-100 shadow-xl"
-              >
-                <Trash2 size={20} />
-              </button>
-            )}
+            <CreativePostCard
+              post={post}
+              currentProfile={profile}
+              onDelete={handleDeletePost}
+              isAdmin={profile?.role === 'admin'}
+            />
           </div>
         ))}
       </div>

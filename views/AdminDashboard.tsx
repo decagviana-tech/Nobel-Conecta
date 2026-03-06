@@ -18,7 +18,8 @@ import {
   X,
   Search as SearchIcon,
   Crown,
-  Plus
+  Plus,
+  User as UserIcon
 } from 'lucide-react';
 import { useAdmin } from '../src/hooks/useAdmin';
 import ConfirmModal from '../components/ConfirmModal';
@@ -29,11 +30,19 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
   const isAdmin = useAdmin(profile);
-  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop'>('stats');
+  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop' | 'moderation'>('stats');
   const [users, setUsers] = useState<Profile[]>([]);
   const [shops, setShops] = useState<any[]>([]); // To manage shop books directly
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    pendingRedemptions: 0,
+    activeGiveaways: 0,
+    vipUsers: 0,
+    totalInteractions: 0
+  });
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -59,18 +68,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
     }
 
     try {
-      const [{ data: userData }, { data: shopData }] = await Promise.all([
+      const [
+        { data: userData },
+        { data: shopData },
+        { data: postData },
+        { count: pendingCount },
+        { count: giveawayCount },
+        { count: interactionsCount },
+        { count: vipCount }
+      ] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('shop_books').select('*').order('title', { ascending: true })
+        supabase.from('shop_books').select('*').order('title', { ascending: true }),
+        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }),
+        supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('giveaways').select('*', { count: 'exact', head: true }).eq('is_active', true),
+        supabase.from('likes').select('*', { count: 'exact', head: true }),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('points', 500)
       ]);
 
       setUsers(userData || []);
       setShops(shopData || []);
+      setPosts(postData || []);
+      setStats({
+        totalUsers: userData?.length || 0,
+        pendingRedemptions: pendingCount || 0,
+        activeGiveaways: giveawayCount || 0,
+        vipUsers: vipCount || 0,
+        totalInteractions: interactionsCount || 0
+      });
     } catch (err) {
       console.error('Error fetching admin data:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Apagar Publicação?",
+      message: "Tem certeza que deseja remover esta publicação permanentemente?",
+      onConfirm: async () => {
+        try {
+          await supabase.from('posts').delete().eq('id', postId);
+          fetchData();
+        } catch (err) {
+          alert('Erro ao excluir publicação.');
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -172,7 +219,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-10 bg-gray-100 p-2 rounded-[2rem] max-w-lg mx-auto md:mx-0">
+      <div className="flex gap-2 mb-10 bg-gray-100 p-2 rounded-[2rem] max-w-2xl mx-auto md:mx-0">
         <button
           onClick={() => setActiveTab('stats')}
           className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
@@ -186,6 +233,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
             }`}
         >
           <Users size={16} /> Usuários
+        </button>
+        <button
+          onClick={() => setActiveTab('moderation')}
+          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'moderation' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <Shield size={16} /> Moderação
         </button>
         <button
           onClick={() => setActiveTab('shop')}
@@ -285,38 +339,112 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mb-6">
-                <Users size={24} />
+                <BarChart3 size={24} />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Engajamento</p>
-              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">Alto</h4>
-              <p className="text-[10px] text-green-500 font-bold">+12% esta semana</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Interações Totais</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">{stats.totalInteractions}</h4>
+              <p className="text-[10px] text-green-500 font-bold">Curtidas no total</p>
             </div>
 
             <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-2xl flex items-center justify-center mb-6">
                 <Ticket size={24} />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Resgates Ativos</p>
-              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">48</h4>
-              <p className="text-[10px] text-gray-400 font-bold">Aguardando retirada</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Resgates Pendentes</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">{stats.pendingRedemptions}</h4>
+              <p className="text-[10px] text-gray-400 font-bold">Aguardando aprovação</p>
             </div>
 
             <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-2xl flex items-center justify-center mb-6">
                 <Crown size={24} />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Membros VIP</p>
-              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">15</h4>
-              <p className="text-[10px] text-yellow-600 font-bold">+2 novos hoje</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Melhores Leitores</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">{stats.vipUsers}</h4>
+              <p className="text-[10px] text-yellow-600 font-bold">+500 pontos</p>
             </div>
 
             <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="w-12 h-12 bg-green-50 text-green-500 rounded-2xl flex items-center justify-center mb-6">
                 <Calendar size={24} />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Eventos Ativos</p>
-              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">3</h4>
-              <p className="text-[10px] text-gray-400 font-bold">Próximo: Amanhã</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Sorteios Ativos</p>
+              <h4 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">{stats.activeGiveaways}</h4>
+              <p className="text-[10px] text-gray-400 font-bold">Em andamento</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'moderation' && (
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-8 border-b border-gray-50 flex items-center justify-between">
+              <h3 className="text-xl font-black font-serif italic tracking-tight">Moderação de Conteúdo</h3>
+              <div className="flex items-center gap-2">
+                <Shield className="text-yellow-500" size={18} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{posts.length} publicações</span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Autor</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Título / Livro</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Data</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {posts
+                    .filter(p =>
+                      p.book_title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      p.author?.username?.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map(p => (
+                      <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-100">
+                              {p.author?.avatar_url ? (
+                                <img src={p.author.avatar_url} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <UserIcon size={14} className="text-gray-300" />
+                              )}
+                            </div>
+                            <span className="font-black text-gray-900 text-sm">@{p.author?.username}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <p className="font-bold text-gray-900 text-sm truncate max-w-xs">{p.book_title || p.title || 'Sem título'}</p>
+                          <p className="text-[9px] text-gray-400 font-medium truncate max-w-xs">{p.content.substring(0, 60)}...</p>
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${p.type === 'review' ? 'bg-blue-50 text-blue-500' :
+                            p.type === 'creative' ? 'bg-purple-50 text-purple-500' : 'bg-gray-100 text-gray-400'
+                            }`}>
+                            {p.type}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5 text-xs text-gray-400">
+                          {new Date(p.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleDeletePost(p.id)}
+                              className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                              title="Remover Publicação"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
