@@ -7,6 +7,7 @@ import { Profile, Post } from '../types';
 import PostCard from '../components/PostCard';
 import ConfirmModal from '../components/ConfirmModal';
 import { followUser, unfollowUser, isFollowingUser } from '../src/services/socialService';
+import { awardPoints } from '../src/services/pointsService';
 
 interface ProfileViewProps {
   currentUserId: string;
@@ -44,7 +45,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
       fetchData(id);
       checkFollowingStatus(id);
     }
-  }, [id, currentUserId]);
+
+    const handleProfileUpdate = (event: any) => {
+      if (isOwnProfile && event.detail.points !== undefined) {
+        setProfile(prev => prev ? { ...prev, points: event.detail.points } : null);
+      }
+    };
+
+    window.addEventListener('nobel_profile_updated', handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener('nobel_profile_updated', handleProfileUpdate);
+    };
+  }, [id, currentUserId, isOwnProfile]);
 
   const checkFollowingStatus = async (targetId: string) => {
     if (!currentUserId || targetId === currentUserId) return;
@@ -211,8 +224,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
           setPosts(posts.filter(p => p.id !== postId));
         } else {
           try {
+            const postToDelete = posts.find(p => p.id === postId);
+
             const { error } = await supabase.from('posts').delete().eq('id', postId);
             if (error) throw error;
+
+            if (postToDelete) {
+              await awardPoints(postToDelete.user_id, 'review', null, -10);
+            }
+
             setPosts(posts.filter(p => p.id !== postId));
           } catch (err: any) {
             alert('Erro ao excluir publicação: ' + (err.message || 'Acesso negado'));

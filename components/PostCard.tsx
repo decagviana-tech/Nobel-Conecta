@@ -144,65 +144,83 @@ Confira a resenha completa em:
     if (!cardRef.current || isGeneratingImage) return;
 
     setIsGeneratingImage(true);
+    console.log('Iniciando geração de imagem para:', post.book_title);
+
     try {
       // Pequeno delay para garantir que imagens foram carregadas e animações pararam
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const options = {
         cacheBust: true,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
         filter: (node: HTMLElement) => {
-          const isButton = node.tagName === 'BUTTON';
-          const isInteractive = node.classList?.contains('ml-auto') && node.classList?.contains('flex');
-          return !isButton && !isInteractive;
+          // Esconder botões e elementos que usam backdrop-blur/filter que quebram o html-to-image
+          if (node.tagName === 'BUTTON') return false;
+          if (node.classList?.contains('backdrop-blur-sm')) return false;
+          if (node.classList?.contains('ml-auto') && node.classList?.contains('flex')) return false;
+          return true;
         },
         style: {
           borderRadius: '24px',
           transform: 'scale(1)',
-        }
+        },
+        skipFonts: true, // Prevents hanging on font loading
+        includeQueryParams: true // Helps with cache busting on some CDNs
       };
+
+      // Tentar converter imagens para base64 antes se possível (ajuda muito com CORS no html-to-image)
+      const images = cardRef.current.querySelectorAll('img');
+      images.forEach(img => {
+        if (!img.crossOrigin) {
+          img.crossOrigin = 'anonymous';
+        }
+      });
 
       let dataUrl;
       try {
+        console.log('Tentando toPng principal...');
         dataUrl = await toPng(cardRef.current, options);
       } catch (e) {
-        console.warn('Png generation failed, trying fallback...');
-        dataUrl = await toPng(cardRef.current, { ...options, cacheBust: false });
-      }
-
-      const blob = await (await fetch(dataUrl)).blob();
-      const fileName = `nobel-conecta-${(post.book_title || 'resenha').replace(/\s+/g, '-').toLowerCase()}.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
-
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Resenha: ${post.book_title}`,
-          text: `Confira minha resenha de ${post.book_title} no Nobel Conecta!`
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = fileName;
-        link.href = dataUrl;
-        link.click();
-        alert('Imagem gerada e download iniciado!');
-      }
-    } catch (err: any) {
-      console.error('Erro ao gerar imagem:', err);
-      // Fallback: Tentar novamente sem cacheBust se falhar
-      try {
-        const dataUrl = await toPng(cardRef.current, {
+        console.warn('Png generation failed, trying simplified png...', e);
+        dataUrl = await toPng(cardRef.current, {
           backgroundColor: '#ffffff',
-          style: { borderRadius: '24px' }
+          pixelRatio: 1,
+          cacheBust: false
         });
-        const link = document.createElement('a');
-        link.download = `nobel-conecta-resenha.png`;
-        link.href = dataUrl;
-        link.click();
-      } catch (retryErr) {
-        alert('Não foi possível gerar a imagem devido a restrições de segurança ou conteúdo externo.');
       }
+
+      const fileName = `nobel-conecta-${(post.book_title || 'resenha').replace(/\s+/g, '-').toLowerCase()}.png`;
+
+      // Tentar usar a API de compartilhamento do sistema (funciona bem em mobille)
+      if (navigator.share && navigator.canShare) {
+        try {
+          const blob = await (await fetch(dataUrl)).blob();
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `Resenha: ${post.book_title}`,
+              text: `Confira minha resenha de ${post.book_title} no Nobel Conecta!`
+            });
+            return;
+          }
+        } catch (shareErr) {
+          console.error('Erro ao compartilhar via API nativa:', shareErr);
+        }
+      }
+
+      // Se não puder compartilhar ou falhar, faz o download comum
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = dataUrl;
+      link.click();
+      alert('Imagem gerada com sucesso! O download foi iniciado.');
+
+    } catch (err: any) {
+      console.error('Erro crítico na geração da imagem:', err);
+      alert('Não foi possível gerar a imagem devido a restrições de segurança do navegador (CORS). Tente usar as opções normais de compartilhamento ou tirar um print da tela.');
     } finally {
       setIsGeneratingImage(false);
     }
@@ -272,8 +290,9 @@ Confira a resenha completa em:
     if (!newComment.trim() || !currentProfile || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
+    const tempId = Math.random().toString(36).substr(2, 9);
     const commentObj: Comment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: tempId,
       post_id: post.id,
       user_id: currentProfile.id,
       content: newComment,
@@ -288,13 +307,19 @@ Confira a resenha completa em:
 
     if (isSupabaseConfigured) {
       try {
-        const { error: insertError } = await supabase.from('comments').insert({
+        const { data: insertedData, error: insertError } = await supabase.from('comments').insert({
           post_id: post.id,
           user_id: currentProfile.id,
           content: newComment
-        });
+        }).select('id').single();
 
         if (insertError) throw insertError;
+
+        if (insertedData) {
+          setComments(prevComments =>
+            prevComments.map(c => c.id === tempId ? { ...c, id: insertedData.id } : c)
+          );
+        }
 
         // Ganho de pontos por comentar
         await awardPoints(currentProfile.id, 'comment', currentProfile);
@@ -328,6 +353,8 @@ Confira a resenha completa em:
   const handleDeleteComment = async (commentId: string) => {
     if (!currentProfile) return;
 
+    const commentToDelete = comments.find(c => c.id === commentId);
+
     const previousComments = [...comments];
     const updated = comments.filter(c => c.id !== commentId);
     setComments(updated);
@@ -340,12 +367,22 @@ Confira a resenha completa em:
           .delete()
           .eq('id', commentId);
 
-        if (error) throw error;
-      } catch (err) {
+        if (error) {
+          console.error('Erro Supabase ao deletar comentário:', error);
+          throw error;
+        }
+
+        // Se deletou com sucesso, revogar os pontos do autor do comentário
+        if (commentToDelete) {
+          await awardPoints(commentToDelete.user_id, 'comment', null, -2);
+        }
+
+        console.log('Comentário deletado com sucesso:', commentId);
+      } catch (err: any) {
         console.error('Erro ao deletar comentário:', err);
         setComments(previousComments);
         setCommentsCount(prev => prev + 1);
-        alert('Erro ao excluir comentário.');
+        alert('Erro ao excluir comentário: ' + (err.message || 'Acesso negado'));
       }
     }
   };
@@ -353,16 +390,21 @@ Confira a resenha completa em:
   const isCreative = post.type === 'creative';
   const isClubThought = post.type === 'club_thought';
 
+  const getProxiedUrl = (url: string) => {
+    if (!url || !url.startsWith('http')) return url;
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=800&fit=cover`;
+  };
+
   return (
     <div ref={cardRef} className="bg-white border border-gray-100 rounded-2xl overflow-hidden mb-3 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row w-full relative">
 
       {post.images && post.images.length > 0 ? (
         <div className="w-full md:w-[45%] aspect-[3/4] md:aspect-[4/5] overflow-hidden bg-gray-50 shrink-0 border-r border-gray-50 relative group/img">
           <img
-            src={post.images[0].startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.images[0])}&default=${encodeURIComponent(post.images[0])}` : post.images[0]}
-            alt="Livro"
+            src={getProxiedUrl(post.images[0])}
+            alt={post.book_title}
             crossOrigin="anonymous"
-            className="w-full h-full object-cover object-top transition-transform duration-1000 group-hover/img:scale-110"
+            className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-110"
           />
           {isClubThought && (
             <div className="absolute top-2 left-2 bg-black/80 text-yellow-400 text-[10px] font-black uppercase px-2 py-1 rounded-md backdrop-blur-sm">
@@ -383,12 +425,14 @@ Confira a resenha completa em:
           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-2 group/user">
             <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-yellow-50 flex items-center justify-center overflow-hidden border border-yellow-100 group-hover/user:border-yellow-400 transition-colors">
               {post.author?.avatar_url ? (
-                <img
-                  src={post.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.author.avatar_url)}&default=${encodeURIComponent(post.author.avatar_url)}` : post.author.avatar_url}
-                  alt={post.author.username}
-                  crossOrigin="anonymous"
-                  className="w-full h-full object-cover"
-                />
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 shrink-0 border-2 border-white shadow-sm">
+                  <img
+                    src={post.author?.avatar_url ? getProxiedUrl(post.author.avatar_url) : `https://ui-avatars.com/api/?name=${post.author?.username}`}
+                    alt={post.author?.username}
+                    crossOrigin="anonymous"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               ) : (
                 <UserIcon className="text-yellow-700" size={14} />
               )}
@@ -447,16 +491,16 @@ Confira a resenha completa em:
         <div className="pt-2 md:pt-3 border-t border-gray-50 mt-auto">
           <div className="flex items-center gap-4 md:gap-6">
             <button onClick={handleLike} className={`flex items-center gap-1 transition-colors ${liked ? 'text-red-500' : 'text-gray-400'}`}>
-              <Heart size={18} md:size={20} fill={liked ? "currentColor" : "none"} strokeWidth={liked ? 0 : 2} />
+              <Heart size={18} className="md:w-5 md:h-5" fill={liked ? "currentColor" : "none"} strokeWidth={liked ? 0 : 2} />
               <span className="text-[11px] md:text-[12px] font-black">{likesCount}</span>
             </button>
             <button
               onClick={() => setShowComments(!showComments)}
               className={`flex items-center gap-1 transition-colors ${showComments ? 'text-black' : 'text-gray-400'}`}
             >
-              <MessageCircle size={18} md:size={20} />
+              <MessageCircle size={18} className="md:w-5 md:h-5" />
               <span className="text-[11px] md:text-[12px] font-black">{commentsCount}</span>
-              {showComments ? <ChevronUp size={12} md:size={14} /> : <ChevronDown size={12} md:size={14} />}
+              {showComments ? <ChevronUp size={12} className="md:w-3.5 md:h-3.5" /> : <ChevronDown size={12} className="md:w-3.5 md:h-3.5" />}
             </button>
             <div className="flex items-center gap-2 ml-auto">
               <button
@@ -465,7 +509,7 @@ Confira a resenha completa em:
                 className="flex items-center gap-1 text-yellow-600 hover:text-yellow-700 transition-colors"
                 title="Compartilhar como Imagem"
               >
-                {isGeneratingImage ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} md:size={20} />}
+                {isGeneratingImage ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} className="md:w-5 md:h-5" />}
                 <span className="text-[11px] md:text-[12px] font-black">Imagem</span>
               </button>
               <button
@@ -473,7 +517,7 @@ Confira a resenha completa em:
                 className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors"
                 title="Compartilhar Link"
               >
-                <Share2 size={18} md:size={20} />
+                <Share2 size={18} className="md:w-5 md:h-5" />
                 <span className="text-[11px] md:text-[12px] font-black">Link</span>
               </button>
             </div>
@@ -492,11 +536,15 @@ Confira a resenha completa em:
                       <span className="text-[11px] md:text-[12px] text-gray-700 flex-1 leading-tight">{c.content}</span>
                       {canDeleteComment && (
                         <button
-                          onClick={() => handleDeleteComment(c.id)}
-                          className="flex p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          onClick={(e) => {
+                            console.log('Botão excluir comentário clicado para:', c.id);
+                            e.stopPropagation();
+                            handleDeleteComment(c.id);
+                          }}
+                          className="flex p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                           title="Excluir Comentário"
                         >
-                          <Trash2 size={10} />
+                          <Trash2 size={16} />
                         </button>
                       )}
                     </div>

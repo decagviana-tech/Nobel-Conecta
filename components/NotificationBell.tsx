@@ -4,6 +4,8 @@ import { Bell, MessageSquare, Gift, MessageCircle, Star, Info, X, Check } from '
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { AppNotification, Profile } from '../types';
 import { Link } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface NotificationBellProps {
   profile: Profile | null;
@@ -19,18 +21,18 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
   useEffect(() => {
     if (profile) {
       fetchNotifications();
-      
+
       // Request permission only if not already determined
       if ('Notification' in window && window.Notification.permission === 'default') {
         requestNotificationPermission();
       }
-      
+
       if (isSupabaseConfigured) {
         const channel = supabase
           .channel(`notifications:${profile.id}`)
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'public', 
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
             table: 'notifications',
             filter: `user_id=eq.${profile.id}`
           }, () => {
@@ -83,7 +85,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
 
   const markAsRead = async (id: string) => {
     if (!isSupabaseConfigured) return;
-    
+
     // Optimistic update
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     setUnreadCount(prev => Math.max(0, prev - 1));
@@ -98,7 +100,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
 
   const markAllAsRead = async () => {
     if (!profile || !isSupabaseConfigured) return;
-    
+
     // Optimistic update
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
@@ -113,13 +115,13 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
 
   const deleteNotification = async (id: string) => {
     if (!isSupabaseConfigured) return;
-    
+
     // Add to deleted tracking to prevent reappearing
     setDeletedIds(prev => new Set(prev).add(id));
-    
+
     // Optimistic update
     setNotifications(prev => prev.filter(n => n.id !== id));
-    
+
     const { error } = await supabase.from('notifications').delete().eq('id', id);
     if (error) {
       console.error('Erro ao excluir notificação:', error);
@@ -152,7 +154,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2.5 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all group"
       >
@@ -169,7 +171,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
           <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
             <h3 className="font-black text-xs uppercase tracking-widest text-gray-900">Notificações</h3>
             {unreadCount > 0 && (
-              <button 
+              <button
                 onClick={markAllAsRead}
                 className="text-[9px] font-black text-yellow-600 uppercase tracking-widest hover:underline"
               >
@@ -181,7 +183,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
           <div className="max-h-[400px] overflow-y-auto">
             {notifications.length > 0 ? (
               notifications.map(notif => (
-                <div 
+                <div
                   key={notif.id}
                   className={`p-4 border-b border-gray-50 flex gap-4 transition-colors relative group ${notif.read ? 'opacity-60' : 'bg-yellow-50/30'}`}
                 >
@@ -194,7 +196,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
                         {notif.title}
                       </p>
                       {!notif.read && (
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -206,7 +208,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
                           <Check size={14} strokeWidth={3} />
                         </button>
                       )}
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -219,11 +221,13 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
                       </button>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{notif.content}</p>
-                    <p className="text-[8px] text-gray-300 font-bold uppercase mt-2">{new Date(notif.created_at).toLocaleDateString()}</p>
+                    <p className="text-[8px] text-gray-300 font-bold uppercase mt-2">
+                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: ptBR })}
+                    </p>
                   </div>
                   {notif.link && (
-                    <Link 
-                      to={notif.link} 
+                    <Link
+                      to={notif.link}
                       onClick={() => {
                         setIsOpen(false);
                         markAsRead(notif.id);
@@ -240,9 +244,9 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
               </div>
             )}
           </div>
-          
+
           <div className="p-4 bg-gray-50/50 text-center">
-             <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Fique por dentro das novidades</p>
+            <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Fique por dentro das novidades</p>
           </div>
         </div>
       )}

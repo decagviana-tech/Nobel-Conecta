@@ -219,34 +219,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-10 bg-gray-100 p-2 rounded-[2rem] max-w-2xl mx-auto md:mx-0">
+      <div className="flex gap-1 md:gap-2 mb-10 bg-gray-100 p-1 md:p-2 rounded-[2rem] max-w-2xl mx-auto md:mx-0 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('stats')}
-          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+          className={`px-3 py-3 md:flex-1 md:py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap ${activeTab === 'stats' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
             }`}
         >
-          <BarChart3 size={16} /> Dashboard
+          <BarChart3 size={14} className="md:w-4 md:h-4" /> Dashboard
         </button>
         <button
           onClick={() => setActiveTab('users')}
-          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'users' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+          className={`px-3 py-3 md:flex-1 md:py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap ${activeTab === 'users' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
             }`}
         >
-          <Users size={16} /> Usuários
+          <Users size={14} className="md:w-4 md:h-4" /> Usuários
         </button>
         <button
           onClick={() => setActiveTab('moderation')}
-          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'moderation' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+          className={`px-3 py-3 md:flex-1 md:py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap ${activeTab === 'moderation' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
             }`}
         >
-          <Shield size={16} /> Moderação
+          <Shield size={14} className="md:w-4 md:h-4" /> Moderação
         </button>
         <button
           onClick={() => setActiveTab('shop')}
-          className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${activeTab === 'shop' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+          className={`px-3 py-3 md:flex-1 md:py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap ${activeTab === 'shop' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
             }`}
         >
-          <BookOpen size={16} /> Loja Shop
+          <BookOpen size={14} className="md:w-4 md:h-4" /> Loja
         </button>
       </div>
 

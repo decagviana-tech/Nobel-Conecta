@@ -163,8 +163,9 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
     if (!newComment.trim() || !currentProfile || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
+    const tempId = Math.random().toString(36).substr(2, 9);
     const commentObj: Comment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: tempId,
       post_id: post.id,
       user_id: currentProfile.id,
       content: newComment,
@@ -179,13 +180,19 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
 
     if (isSupabaseConfigured) {
       try {
-        const { error: insertError } = await supabase.from('creative_comments').insert({
+        const { data: insertedData, error: insertError } = await supabase.from('creative_comments').insert({
           post_id: post.id,
           user_id: currentProfile.id,
           content: newComment
-        });
+        }).select('id').single();
 
         if (insertError) throw insertError;
+
+        if (insertedData) {
+          setComments(prevComments =>
+            prevComments.map(c => c.id === tempId ? { ...c, id: insertedData.id } : c)
+          );
+        }
 
         // Ganho de pontos por comentar
         await awardPoints(currentProfile.id, 'comment', currentProfile);
@@ -219,6 +226,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
   const handleDeleteComment = async (commentId: string) => {
     if (!currentProfile) return;
 
+    const commentToDelete = comments.find(c => c.id === commentId);
+
     const previousComments = [...comments];
     const updated = comments.filter(c => c.id !== commentId);
     setComments(updated);
@@ -231,14 +240,29 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
           .delete()
           .eq('id', commentId);
 
-        if (error) throw error;
-      } catch (err) {
-        console.error('Erro ao deletar comentário:', err);
+        if (error) {
+          console.error('Erro Supabase ao deletar comentário criativo:', error);
+          throw error;
+        }
+
+        // Se deletou com sucesso, revogar os pontos do autor do comentário
+        if (commentToDelete) {
+          await awardPoints(commentToDelete.user_id, 'comment', null, -2);
+        }
+
+        console.log('Comentário criativo deletado com sucesso:', commentId);
+      } catch (err: any) {
+        console.error('Erro ao deletar comentário criativo:', err);
         setComments(previousComments);
         setCommentsCount(prev => prev + 1);
-        alert('Erro ao excluir comentário.');
+        alert('Erro ao excluir comentário: ' + (err.message || 'Acesso negado'));
       }
     }
+  };
+
+  const getProxiedUrl = (url: string) => {
+    if (!url || !url.startsWith('http')) return url;
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=400&fit=cover`;
   };
 
   const handleShare = async () => {
@@ -282,62 +306,78 @@ Veja o texto completo no Nobel Conecta:
     if (!cardRef.current || isGeneratingImage) return;
 
     setIsGeneratingImage(true);
+    console.log('Iniciando geração de imagem criativa para:', post.title);
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const options = {
         cacheBust: true,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
         filter: (node: HTMLElement) => {
-          const isButton = node.tagName === 'BUTTON';
-          const isInteractive = node.classList?.contains('ml-auto') && node.classList?.contains('flex');
-          return !isButton && !isInteractive;
+          if (node.tagName === 'BUTTON') return false;
+          if (node.classList?.contains('backdrop-blur-sm')) return false;
+          if (node.classList?.contains('ml-auto') && node.classList?.contains('flex')) return false;
+          return true;
         },
         style: {
           borderRadius: '40px',
           transform: 'scale(1)',
-        }
+        },
+        skipFonts: true,
+        includeQueryParams: true
       };
+
+      const images = cardRef.current.querySelectorAll('img');
+      images.forEach(img => {
+        if (!img.crossOrigin) {
+          img.crossOrigin = 'anonymous';
+        }
+      });
 
       let dataUrl;
       try {
+        console.log('Tentando toPng principal para criativo...');
         dataUrl = await toPng(cardRef.current, options);
-      } catch (retryErr) {
-        dataUrl = await toPng(cardRef.current, { ...options, cacheBust: false });
-      }
-
-      const blob = await (await fetch(dataUrl)).blob();
-      const fileName = `nobel-criativo-${(post.title || 'texto').replace(/\s+/g, '-').toLowerCase()}.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
-
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Obra: ${post.title || 'Texto Criativo'}`,
-          text: `Confira minha criação no Mural do Nobel Conecta!`
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = fileName;
-        link.href = dataUrl;
-        link.click();
-        alert('Imagem gerada e download iniciado!');
-      }
-    } catch (err: any) {
-      console.error('Erro ao gerar imagem:', err);
-      try {
-        const dataUrl = await toPng(cardRef.current, {
+      } catch (e) {
+        console.warn('Png generation failed for creative, trying simplified png...', e);
+        dataUrl = await toPng(cardRef.current, {
           backgroundColor: '#ffffff',
-          style: { borderRadius: '40px' }
+          pixelRatio: 1,
+          cacheBust: false
         });
-        const link = document.createElement('a');
-        link.download = `nobel-conecta-criativo.png`;
-        link.href = dataUrl;
-        link.click();
-      } catch (retryErr) {
-        alert('Não foi possível gerar a imagem devido a restrições de segurança ou conteúdo externo.');
       }
+
+      const fileName = `nobel-criativo-${(post.title || 'texto').replace(/\s+/g, '-').toLowerCase()}.png`;
+
+      if (navigator.share && navigator.canShare) {
+        try {
+          const blob = await (await fetch(dataUrl)).blob();
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `Nobel Conecta - ${post.title}`,
+              text: `Confira este texto criativo no Nobel Conecta!`
+            });
+            return;
+          }
+        } catch (shareErr) {
+          console.error('Erro ao compartilhar imagem criativa:', shareErr);
+        }
+      }
+
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = dataUrl;
+      link.click();
+      alert('Imagem gerada com sucesso! O download foi iniciado.');
+
+    } catch (err: any) {
+      console.error('Erro crítico na geração da imagem criativa:', err);
+      alert('Não foi possível gerar a imagem devido a restrições de segurança do navegador (CORS). Tente usar as opções normais de compartilhamento ou tirar um print da tela.');
     } finally {
       setIsGeneratingImage(false);
     }
@@ -432,7 +472,7 @@ Veja o texto completo no Nobel Conecta:
                     <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
                       {c.author?.avatar_url ? (
                         <img
-                          src={c.author?.avatar_url || `https://ui-avatars.com/api/?name=${c.author?.username || 'U'}`}
+                          src={getProxiedUrl(c.author.avatar_url)}
                           alt={c.author?.username}
                           crossOrigin="anonymous"
                           className="w-full h-full object-cover"
@@ -446,11 +486,15 @@ Veja o texto completo no Nobel Conecta:
                         <span className="text-[11px] md:text-[12px] font-black text-black">@{c.author?.username}</span>
                         {canDeleteComment && (
                           <button
-                            onClick={() => handleDeleteComment(c.id)}
-                            className="flex p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            onClick={(e) => {
+                              console.log('Botão excluir comentário criativo clicado para:', c.id);
+                              e.stopPropagation();
+                              handleDeleteComment(c.id);
+                            }}
+                            className="flex p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                             title="Excluir Comentário"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>

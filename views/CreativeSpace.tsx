@@ -5,6 +5,7 @@ import { Post as CreativePost, Profile } from '../types';
 import { Plus, Loader2, Image as ImageIcon, Sparkles, Heart, MessageSquare, Trash2, Send, ArrowRight } from 'lucide-react';
 import CreativePostCard from '../components/CreativePostCard';
 import ConfirmModal from '../components/ConfirmModal';
+import { awardPoints } from '../src/services/pointsService';
 
 interface CreativeSpaceProps {
   profile: Profile | null;
@@ -118,7 +119,14 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
         }
 
         try {
+          const postToDelete = posts.find(p => p.id === id);
+
           await supabase.from('creative_posts').delete().eq('id', id);
+
+          if (postToDelete) {
+            await awardPoints(postToDelete.user_id, 'creative', null, -10);
+          }
+
           fetchPosts();
         } catch (err) {
           alert('Erro ao excluir.');
