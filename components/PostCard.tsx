@@ -6,6 +6,7 @@ import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
 import { awardPoints } from '../src/services/pointsService';
+import { toProxyBase64 } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
@@ -169,13 +170,23 @@ Confira a resenha completa em:
         includeQueryParams: true // Helps with cache busting on some CDNs
       };
 
-      // Tentar converter imagens para base64 antes se possível (ajuda muito com CORS no html-to-image)
+      // Converter TODAS as imagens do card para base64 local ANTES de desenhar
+      // Isso burla o CORS do html-to-image porque a imagem passa a "nascer" no proprio domínimo
       const images = cardRef.current.querySelectorAll('img');
-      images.forEach(img => {
-        if (!img.crossOrigin) {
-          img.crossOrigin = 'anonymous';
-        }
-      });
+      const originalSrcs = new Map<HTMLImageElement, string>();
+
+      try {
+        await Promise.all(Array.from(images).map(async (element) => {
+          const img = element as HTMLImageElement;
+          originalSrcs.set(img, img.src);
+          // Only proxy if not already local or base64
+          if (!img.src.startsWith('data:') && !img.src.startsWith('blob:')) {
+            img.src = await toProxyBase64(img.src);
+          }
+        }));
+      } catch (proxyErr) {
+        console.warn('Falha no pre-proxy das imagens, tentando fallback nativo', proxyErr);
+      }
 
       let dataUrl;
       try {
@@ -222,6 +233,15 @@ Confira a resenha completa em:
       console.error('Erro crítico na geração da imagem:', err);
       alert('Não foi possível gerar a imagem devido a restrições de segurança do navegador (CORS). Tente usar as opções normais de compartilhamento ou tirar um print da tela.');
     } finally {
+      // Restaurar as fontes originais das imagens
+      if (cardRef.current) {
+        const images = cardRef.current.querySelectorAll('img');
+        images.forEach(img => {
+          if (img.dataset.originalSrc) {
+            img.src = img.dataset.originalSrc;
+          }
+        });
+      }
       setIsGeneratingImage(false);
     }
   };

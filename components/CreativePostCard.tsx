@@ -6,6 +6,7 @@ import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
 import { awardPoints } from '../src/services/pointsService';
+import { toProxyBase64 } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
@@ -329,12 +330,21 @@ Veja o texto completo no Nobel Conecta:
         includeQueryParams: true
       };
 
+      // Pre-process images to bypass CORS
       const images = cardRef.current.querySelectorAll('img');
-      images.forEach(img => {
-        if (!img.crossOrigin) {
-          img.crossOrigin = 'anonymous';
-        }
-      });
+      const originalSrcs = new Map<HTMLImageElement, string>();
+
+      try {
+        await Promise.all(Array.from(images).map(async (element) => {
+          const img = element as HTMLImageElement;
+          originalSrcs.set(img, img.src);
+          if (!img.src.startsWith('data:') && !img.src.startsWith('blob:')) {
+            img.src = await toProxyBase64(img.src);
+          }
+        }));
+      } catch (proxyErr) {
+        console.warn('Falha no pre-proxy das imagens', proxyErr);
+      }
 
       let dataUrl;
       try {
@@ -379,6 +389,16 @@ Veja o texto completo no Nobel Conecta:
       console.error('Erro crítico na geração da imagem criativa:', err);
       alert('Não foi possível gerar a imagem devido a restrições de segurança do navegador (CORS). Tente usar as opções normais de compartilhamento ou tirar um print da tela.');
     } finally {
+      // Restaurar src original das imagens
+      if (cardRef.current) {
+        const images = cardRef.current.querySelectorAll('img');
+        images.forEach(element => {
+          const img = element as HTMLImageElement;
+          if (img.dataset.originalSrc) {
+            img.src = img.dataset.originalSrc;
+          }
+        });
+      }
       setIsGeneratingImage(false);
     }
   };

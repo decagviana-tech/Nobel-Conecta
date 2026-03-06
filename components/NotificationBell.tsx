@@ -77,7 +77,17 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
 
     if (data) {
       // Filter out notifications that were recently deleted locally
-      const filteredData = data.filter(n => !deletedIds.has(n.id));
+      let filteredData = data.filter(n => !deletedIds.has(n.id));
+
+      // Strict deduplication by ID just in case Supabase sends duplicates in rapid succession
+      const uniqueMap = new Map();
+      filteredData.forEach(notif => {
+        if (!uniqueMap.has(notif.id)) {
+          uniqueMap.set(notif.id, notif);
+        }
+      });
+      filteredData = Array.from(uniqueMap.values());
+
       setNotifications(filteredData);
       setUnreadCount(filteredData.filter(n => !n.read).length);
     }
