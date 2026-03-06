@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { Profile, Message } from '../types';
-import { Send, ArrowLeft, User, Loader2, MessageSquare, Search } from 'lucide-react';
+import { Send, ArrowLeft, User, Loader2, MessageSquare, Search, Edit2, Check, X } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { createNotification } from '../src/services/notificationService';
 
@@ -23,6 +23,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editMessageContent, setEditMessageContent] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -34,14 +36,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
     if (profile && contactId) {
       fetchMessages(contactId);
       fetchContactProfile(contactId);
-      
+
       // Real-time subscription
       if (isSupabaseConfigured) {
         const channel = supabase
           .channel(`messages:${profile.id}`)
-          .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
             table: 'messages',
             filter: `receiver_id=eq.${profile.id}`
           }, (payload) => {
@@ -93,7 +95,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
       data.forEach((msg: Message) => {
         const contactId = msg.sender_id === profile.id ? msg.receiver_id : msg.sender_id;
         const contactProfile = msg.sender_id === profile.id ? msg.receiver : msg.sender;
-        
+
         if (!groups[contactId] && contactProfile) {
           groups[contactId] = {
             profile: contactProfile,
@@ -122,7 +124,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
 
       if (error) throw error;
       setMessages(data || []);
-      
+
       // Mark as read
       await supabase
         .from('messages')
@@ -176,6 +178,23 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
     }
   };
 
+  const handleSaveEdit = async (id: string) => {
+    if (!editMessageContent.trim()) return;
+
+    try {
+      if (isSupabaseConfigured) {
+        const { error } = await supabase.from('messages').update({ content: editMessageContent }).eq('id', id);
+        if (error) throw error;
+      }
+
+      setMessages(msgs => msgs.map(m => m.id === id ? { ...m, content: editMessageContent } : m));
+      setEditingMessageId(null);
+      fetchConversations();
+    } catch (err) {
+      alert('Erro ao editar mensagem');
+    }
+  };
+
   const handleSearchUsers = async (term: string) => {
     setSearchTerm(term);
     if (term.length < 2) {
@@ -197,7 +216,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
         .ilike('username', `%${term}%`)
         .neq('id', profile?.id)
         .limit(5);
-      
+
       setSearchResults(data || []);
     } catch (err) {
       console.error('Error searching users:', err);
@@ -214,23 +233,23 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
           <h2 className="text-xl font-black font-serif italic mb-4">Mensagens</h2>
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              placeholder="Buscar usuários para conversar..." 
+            <input
+              placeholder="Buscar usuários para conversar..."
               value={searchTerm}
               onChange={(e) => handleSearchUsers(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-yellow-400"
             />
           </div>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto">
           {isSearching ? (
             <div className="p-4">
               <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-2">Resultados da busca</p>
               {searchResults.length > 0 ? (
                 searchResults.map(user => (
-                  <button 
-                    key={user.id} 
+                  <button
+                    key={user.id}
                     onClick={() => {
                       setSearchTerm('');
                       setIsSearching(false);
@@ -250,7 +269,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
               ) : (
                 <p className="text-[10px] text-gray-300 italic p-4">Nenhum usuário encontrado...</p>
               )}
-              <button 
+              <button
                 onClick={() => {
                   setSearchTerm('');
                   setIsSearching(false);
@@ -262,8 +281,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
             </div>
           ) : conversations.length > 0 ? (
             conversations.map(conv => (
-              <Link 
-                key={conv.profile.id} 
+              <Link
+                key={conv.profile.id}
                 to={`/messages/${conv.profile.id}`}
                 className={`flex items-center gap-4 p-4 border-b border-gray-50 hover:bg-yellow-50/30 transition-all ${contactId === conv.profile.id ? 'bg-yellow-50 border-l-4 border-l-yellow-400' : ''}`}
               >
@@ -313,7 +332,44 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
                 return (
                   <div key={msg.id || i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] p-4 rounded-2xl text-sm shadow-sm ${isMine ? 'bg-black text-white rounded-tr-none' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-none'}`}>
-                      <p className="leading-relaxed">{msg.content}</p>
+                      {editingMessageId === msg.id ? (
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <input
+                            className="text-black bg-white/90 rounded-lg p-2 w-full text-sm outline-none focus:ring-2 focus:ring-yellow-400"
+                            value={editMessageContent}
+                            onChange={e => setEditMessageContent(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSaveEdit(msg.id!);
+                              } else if (e.key === 'Escape') {
+                                setEditingMessageId(null);
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <div className="flex gap-2 justify-end mt-1">
+                            <button title="Cancelar" onClick={() => setEditingMessageId(null)} className="p-1.5 rounded-lg bg-gray-500/20 hover:bg-gray-500 text-white transition-colors"><X size={14} /></button>
+                            <button title="Salvar" onClick={() => handleSaveEdit(msg.id!)} className="p-1.5 rounded-lg bg-green-500/80 hover:bg-green-500 text-white transition-colors"><Check size={14} /></button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="group relative">
+                          <p className="leading-relaxed whitespace-pre-wrap pr-4">{msg.content}</p>
+                          {isMine && (
+                            <button
+                              onClick={() => {
+                                setEditingMessageId(msg.id!);
+                                setEditMessageContent(msg.content);
+                              }}
+                              className="absolute top-0 -right-2 opacity-0 group-hover:opacity-100 p-1.5 bg-gray-800 text-white rounded-lg hover:bg-yellow-500 hover:text-black transition-all shadow-md"
+                              title="Editar Mensagem"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <p className={`text-[8px] mt-2 font-bold uppercase tracking-widest ${isMine ? 'text-white/40 text-right' : 'text-gray-300'}`}>
                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
@@ -325,14 +381,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
 
             {/* Input de Mensagem */}
             <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-100 flex gap-3">
-              <input 
+              <input
                 value={newMessage}
                 onChange={e => setNewMessage(e.target.value)}
                 placeholder="Escreva sua mensagem..."
                 className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-sm font-medium outline-none focus:bg-white focus:border-yellow-400 transition-all"
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={sending || !newMessage.trim()}
                 className="bg-black text-yellow-400 p-4 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
               >

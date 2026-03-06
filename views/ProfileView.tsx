@@ -4,7 +4,9 @@ import { useParams, Link } from 'react-router-dom';
 import { User, Book, Tag, Camera, Loader2, ArrowLeft, UserPlus, UserMinus, Trophy, Star, MessageCircle, Trash2 } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { Profile, Post } from '../types';
+import { compressImage } from '../src/utils/imageUtils';
 import PostCard from '../components/PostCard';
+import CreatePostModal from '../components/CreatePostModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { followUser, unfollowUser, isFollowingUser } from '../src/services/socialService';
 import { awardPoints } from '../src/services/pointsService';
@@ -23,6 +25,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
   const [editForm, setEditForm] = useState<Partial<Profile>>({});
   const [uploading, setUploading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | undefined>(undefined);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -174,7 +178,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     if (!e.target.files?.[0] || !profile) return;
     setUploading(true);
     try {
-      const url = await uploadFile('avatars', e.target.files[0]);
+      const originalFile = e.target.files[0];
+      const compressedFile = await compressImage(originalFile, 0.2, 500); // avatar pequeno (máx 200kb, 500px)
+      const url = await uploadFile('avatars', compressedFile);
       if (isSupabaseConfigured) {
         await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id);
       }
@@ -377,7 +383,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
         <h3 className="font-black text-xl text-gray-900 font-serif italic border-b border-gray-100 pb-4">Linha do Tempo Literária</h3>
         {posts.length > 0 ? (
           <div className="space-y-6">
-            {posts.map(post => <PostCard key={post.id} post={post} currentProfile={currentProfile} onDelete={handleDeletePost} />)}
+            {posts.map(post => <PostCard key={post.id} post={post} currentProfile={currentProfile} onDelete={handleDeletePost} onEdit={(p) => { setEditingPost(p); setShowCreateModal(true); }} />)}
           </div>
         ) : (
           <div className="text-center py-24 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">
@@ -393,6 +399,25 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {showCreateModal && currentProfile && (
+        <CreatePostModal
+          userId={currentProfile.id}
+          currentProfile={currentProfile}
+          onClose={() => { setShowCreateModal(false); setEditingPost(undefined); }}
+          onSuccess={(newPost) => {
+            if (newPost) {
+              setPosts(prev => prev.map(p => p.id === newPost.id ? newPost : p));
+            } else {
+              if (id) fetchData(id);
+            }
+            setShowCreateModal(false);
+            setEditingPost(undefined);
+          }}
+          postType={(editingPost?.type as 'review' | 'creative') || 'review'}
+          editingPost={editingPost}
+        />
+      )}
     </div>
   );
 };

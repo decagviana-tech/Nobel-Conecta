@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Star, MessageCircle, Heart, Trash2, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Share2, Image as ImageIcon, Download, Loader2 } from 'lucide-react';
+import { Star, MessageCircle, Heart, Trash2, Edit2, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Share2, Image as ImageIcon, Download, Loader2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
@@ -15,9 +15,10 @@ interface PostCardProps {
   post: Post;
   currentProfile: Profile | null;
   onDelete?: (postId: string) => void;
+  onEdit?: (post: Post) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onEdit }) => {
   const [liked, setLiked] = useState(post.user_has_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [isLiking, setIsLiking] = useState(false);
@@ -465,28 +466,43 @@ Confira a resenha completa em:
             </div>
           </Link>
           {(isAdmin || isOwner) && (
-            <button
-              onClick={async (e) => {
-                console.log('Botão de excluir clicado no PostCard. ID:', post.id);
-                e.preventDefault();
-                e.stopPropagation();
-                if (onDelete) {
-                  console.log('Chamando onDelete prop...');
-                  try {
-                    await onDelete(post.id);
-                  } catch (err) {
-                    console.error('Erro ao executar onDelete:', err);
-                    alert('Erro ao excluir. Tente novamente.');
+            <div className="flex items-center gap-2 z-10">
+              {isOwner && onEdit && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEdit(post);
+                  }}
+                  className="bg-blue-50 text-blue-500 p-2 md:p-2.5 transition-all rounded-lg md:rounded-xl shadow-sm hover:scale-110 active:scale-95"
+                  title="Editar Publicação"
+                >
+                  <Edit2 size={16} strokeWidth={2.5} />
+                </button>
+              )}
+              <button
+                onClick={async (e) => {
+                  console.log('Botão de excluir clicado no PostCard. ID:', post.id);
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onDelete) {
+                    console.log('Chamando onDelete prop...');
+                    try {
+                      await onDelete(post.id);
+                    } catch (err) {
+                      console.error('Erro ao executar onDelete:', err);
+                      alert('Erro ao excluir. Tente novamente.');
+                    }
+                  } else {
+                    console.warn('onDelete prop não fornecida para o PostCard!');
                   }
-                } else {
-                  console.warn('onDelete prop não fornecida para o PostCard!');
-                }
-              }}
-              className="bg-red-500 text-white p-2 md:p-2.5 transition-all rounded-lg md:rounded-xl shadow-lg hover:scale-110 active:scale-95 z-10"
-              title="Excluir Publicação"
-            >
-              <Trash2 size={14} md:size={18} strokeWidth={2.5} />
-            </button>
+                }}
+                className="bg-red-500 text-white p-2 md:p-2.5 transition-all rounded-lg md:rounded-xl shadow-lg hover:scale-110 active:scale-95"
+                title="Excluir Publicação"
+              >
+                <Trash2 size={16} strokeWidth={2.5} />
+              </button>
+            </div>
           )}
         </div>
 
@@ -523,15 +539,6 @@ Confira a resenha completa em:
               {showComments ? <ChevronUp size={12} className="md:w-3.5 md:h-3.5" /> : <ChevronDown size={12} className="md:w-3.5 md:h-3.5" />}
             </button>
             <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={handleShareImage}
-                disabled={isGeneratingImage}
-                className="flex items-center gap-1 text-yellow-600 hover:text-yellow-700 transition-colors"
-                title="Compartilhar como Imagem"
-              >
-                {isGeneratingImage ? <Loader2 className="animate-spin" size={18} /> : <ImageIcon size={18} className="md:w-5 md:h-5" />}
-                <span className="text-[11px] md:text-[12px] font-black">Imagem</span>
-              </button>
               <button
                 onClick={handleShare}
                 className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors"

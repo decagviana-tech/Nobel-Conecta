@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Plus, Trash2, CheckCircle2, AlertCircle, Clock, ExternalLink, Info, Heart, MessageCircle, Send, X, Camera, Image as ImageIcon } from 'lucide-react';
+import { Calendar, MapPin, Users, Plus, Trash2, CheckCircle2, AlertCircle, Clock, ExternalLink, Info, Heart, MessageCircle, Send, X, Camera, Image as ImageIcon, Edit2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { Profile, LibraryEvent as Event } from '../types';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
   const [newComment, setNewComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
 
   const [newEvent, setNewEvent] = useState<Partial<Event>>({
     title: '',
@@ -230,32 +231,58 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
     });
   };
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
+  const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
 
     try {
       if (!isSupabaseConfigured) {
-        const newEvData = {
-          ...newEvent,
-          id: Math.random().toString(),
-          participants_count: 0,
-          created_at: new Date().toISOString()
-        } as Event;
-        setEvents(prev => [...prev, newEvData]);
+        if (editingEvent) {
+          const updatedEvents = events.map(ev => ev.id === editingEvent.id ? { ...ev, ...newEvent } : ev);
+          setEvents(updatedEvents);
+        } else {
+          const newEvData = {
+            ...newEvent,
+            id: Math.random().toString(),
+            participants_count: 0,
+            created_at: new Date().toISOString()
+          } as Event;
+          setEvents(prev => [...prev, newEvData]);
+        }
         setShowCreateModal(false);
+        setEditingEvent(null);
         return;
       }
 
-      const { error } = await supabase.from('events').insert([newEvent]);
-      if (error) throw error;
+      if (editingEvent) {
+        const { error } = await supabase.from('events').update(newEvent).eq('id', editingEvent.id);
+        if (error) throw error;
+        alert('Evento editado com sucesso!');
+      } else {
+        const { error } = await supabase.from('events').insert([newEvent]);
+        if (error) throw error;
+        alert('Evento criado com sucesso!');
+      }
 
       setShowCreateModal(false);
+      setEditingEvent(null);
       fetchEvents();
-      alert('Evento criado com sucesso!');
     } catch (err) {
-      alert('Erro ao criar evento.');
+      alert('Erro ao salvar evento.');
     }
+  };
+
+  const handleEditClick = (event: Event) => {
+    setEditingEvent(event);
+    setNewEvent({
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      location: event.location,
+      image_url: event.image_url,
+      max_participants: event.max_participants
+    });
+    setShowCreateModal(true);
   };
 
   if (loading) return <div className="p-10 text-center text-gray-400 font-serif italic">Preparando os convites...</div>;
@@ -269,7 +296,18 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setEditingEvent(null);
+              setNewEvent({
+                title: '',
+                description: '',
+                date: new Date().toISOString(),
+                location: '',
+                image_url: '',
+                max_participants: 20
+              });
+              setShowCreateModal(true);
+            }}
             className="bg-black text-yellow-400 p-4 rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all group"
           >
             <Plus size={28} className="group-hover:rotate-90 transition-transform" />
@@ -318,9 +356,14 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
                     </div>
                   </div>
                   {isAdmin && (
-                    <button onClick={() => handleDeleteEvent(event.id)} className="p-3 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                      <Trash2 size={20} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEditClick(event)} className="p-3 text-blue-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all">
+                        <Edit2 size={20} />
+                      </button>
+                      <button onClick={() => handleDeleteEvent(event.id)} className="p-3 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -422,15 +465,17 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
           <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h3 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">Novo Momento</h3>
-                <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Crie uma experiência inesquecível</p>
+                <h3 className="text-3xl font-black font-serif italic mb-2 tracking-tighter">{editingEvent ? 'Editar Evento' : 'Novo Momento'}</h3>
+                <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                  {editingEvent ? 'Atualize os detalhes da experiência' : 'Crie uma experiência inesquecível'}
+                </p>
               </div>
               <button onClick={() => setShowCreateModal(false)} className="bg-gray-50 p-2 rounded-xl text-gray-400 hover:text-black">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="space-y-6">
+            <form onSubmit={handleSaveEvent} className="space-y-6">
               {/* Image Selection */}
               <div className="relative aspect-[16/9] bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200 overflow-hidden group">
                 {newEvent.image_url ? (
@@ -511,7 +556,7 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
                   disabled={uploadingImage}
                   className="flex-1 bg-black text-yellow-400 py-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  {uploadingImage ? 'Enviando Foto...' : 'Publicar Evento'}
+                  {uploadingImage ? 'Enviando Foto...' : (editingEvent ? 'Salvar Edição' : 'Publicar Evento')}
                 </button>
               </div>
             </form>

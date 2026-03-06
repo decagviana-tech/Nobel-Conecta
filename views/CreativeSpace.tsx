@@ -6,6 +6,7 @@ import { Plus, Loader2, Image as ImageIcon, Sparkles, Heart, MessageSquare, Tras
 import CreativePostCard from '../components/CreativePostCard';
 import ConfirmModal from '../components/ConfirmModal';
 import { awardPoints } from '../src/services/pointsService';
+import { compressImage } from '../src/utils/imageUtils';
 
 interface CreativeSpaceProps {
   profile: Profile | null;
@@ -15,6 +16,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
   const [posts, setPosts] = useState<CreativePost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingPost, setEditingPost] = useState<CreativePost | undefined>(undefined);
   const [newPost, setNewPost] = useState({
     title: '',
     content: '',
@@ -88,15 +90,30 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('creative_posts')
-        .insert({
-          ...newPost,
-          user_id: profile.id
-        });
+      if (editingPost) {
+        const { error } = await supabase
+          .from('creative_posts')
+          .update({
+            title: newPost.title,
+            content: newPost.content,
+            type: newPost.type
+          })
+          .eq('id', editingPost.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('creative_posts')
+          .insert({
+            ...newPost,
+            user_id: profile.id
+          });
+
+        if (error) throw error;
+      }
+
       setShowCreateModal(false);
+      setEditingPost(undefined);
       setNewPost({ title: '', content: '', type: 'poem', image_url: '' });
       fetchPosts();
     } catch (err) {
@@ -104,6 +121,17 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEdit = (post: CreativePost) => {
+    setEditingPost(post);
+    setNewPost({
+      title: post.title || '',
+      content: post.content || '',
+      type: (post.type as any) || 'poem',
+      image_url: post.images?.[0] || ''
+    });
+    setShowCreateModal(true);
   };
 
   const handleDeletePost = (id: string) => {
@@ -165,7 +193,11 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
 
       {/* Botão de Criação */}
       <button
-        onClick={() => setShowCreateModal(true)}
+        onClick={() => {
+          setEditingPost(undefined);
+          setNewPost({ title: '', content: '', type: 'poem', image_url: '' });
+          setShowCreateModal(true);
+        }}
         className="w-full mb-10 group"
       >
         <div className="bg-white border-2 border-dashed border-gray-200 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 group-hover:border-yellow-400 group-hover:bg-yellow-50/30 transition-all duration-500">
@@ -173,7 +205,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
             <Plus size={32} strokeWidth={2.5} />
           </div>
           <div className="text-center">
-            <h3 className="text-black font-black uppercase tracking-[0.2em] text-[10px] mb-1">O que a sua alma diz hoje?</h3>
+            <h3 className="text-black font-black uppercase tracking-[0.2em] text-[10px] mb-1">O que você quer compartilhar hoje?</h3>
             <p className="text-gray-400 text-[10px] italic">Clique aqui para publicar uma nova criação</p>
           </div>
         </div>
@@ -186,6 +218,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
               post={post}
               currentProfile={profile}
               onDelete={handleDeletePost}
+              onEdit={handleEdit}
               isAdmin={profile?.role === 'admin'}
             />
           </div>
@@ -201,7 +234,9 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
                 <div className="bg-black text-yellow-400 p-2 rounded-xl">
                   <Sparkles size={20} />
                 </div>
-                <h3 className="text-3xl font-black font-serif italic tracking-tighter">Manifeste-se</h3>
+                <h3 className="text-3xl font-black font-serif italic tracking-tighter">
+                  {editingPost ? 'Editar Obra' : 'Manifeste-se'}
+                </h3>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -255,16 +290,20 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
                   >
                     {submitting ? <Loader2 className="animate-spin" /> : (
                       <>
-                        <Send size={18} /> Publicar Obra
+                        <Send size={18} /> {editingPost ? 'Salvar Edição' : 'Publicar Obra'}
                       </>
                     )}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setEditingPost(undefined);
+                      setNewPost({ title: '', content: '', type: 'poem', image_url: '' });
+                    }}
                     className="flex-1 bg-gray-100 text-gray-400 py-5 rounded-2xl font-black uppercase tracking-widest text-xs"
                   >
-                    Guardar para Depois
+                    Cancelar
                   </button>
                 </div>
               </form>

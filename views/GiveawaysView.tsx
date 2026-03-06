@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon } from 'lucide-react';
+import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon, Edit2 } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { awardPoints } from '../src/services/pointsService';
 import { Profile, Giveaway } from '../types';
+import { compressImage } from '../src/utils/imageUtils';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface GiveawaysViewProps {
@@ -23,6 +24,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     is_active: true
   });
   const [uploading, setUploading] = useState(false);
+  const [editingGiveaway, setEditingGiveaway] = useState<Giveaway | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -132,7 +134,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     });
   };
 
-  const handleCreateGiveaway = async (e: React.FormEvent) => {
+  const handleSaveGiveaway = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSupabaseConfigured) {
       alert('Funcionalidade disponível apenas com Supabase configurado.');
@@ -140,31 +142,51 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     }
 
     try {
-      const { error } = await supabase.from('giveaways').insert(newGiveaway);
-      if (error) throw error;
+      if (editingGiveaway) {
+        const { error } = await supabase.from('giveaways').update(newGiveaway).eq('id', editingGiveaway.id);
+        if (error) throw error;
+        alert('Sorteio editado com sucesso!');
+      } else {
+        const { error } = await supabase.from('giveaways').insert(newGiveaway);
+        if (error) throw error;
 
-      // Enviar notificação para todos os usuários sobre o novo sorteio
-      try {
-        const { data: profiles } = await supabase.from('profiles').select('id');
-        if (profiles) {
-          const notifications = profiles.map(p => ({
-            user_id: p.id,
-            type: 'giveaway',
-            title: '🎁 Novo Sorteio Nobel!',
-            content: `Participe agora do sorteio: ${newGiveaway.title}`,
-            link: '/giveaways'
-          }));
-          await supabase.from('notifications').insert(notifications);
+        // Enviar notificação para todos os usuários sobre o novo sorteio
+        try {
+          const { data: profiles } = await supabase.from('profiles').select('id');
+          if (profiles) {
+            const notifications = profiles.map(p => ({
+              user_id: p.id,
+              type: 'giveaway',
+              title: '🎁 Novo Sorteio Nobel!',
+              content: `Participe agora do sorteio: ${newGiveaway.title}`,
+              link: '/giveaways'
+            }));
+            await supabase.from('notifications').insert(notifications);
+          }
+        } catch (notifErr) {
+          console.warn('Não foi possível enviar notificações:', notifErr);
         }
-      } catch (notifErr) {
-        console.warn('Não foi possível enviar notificações:', notifErr);
+        alert('Sorteio criado com sucesso!');
       }
 
       setShowCreateModal(false);
+      setEditingGiveaway(null);
       fetchGiveaways();
     } catch (err) {
-      alert('Erro ao criar sorteio. Verifique se as tabelas foram criadas no SQL Editor.');
+      alert('Erro ao salvar sorteio. Verifique se as tabelas foram criadas no SQL Editor.');
     }
+  };
+
+  const handleEditClick = (giveaway: Giveaway) => {
+    setEditingGiveaway(giveaway);
+    setNewGiveaway({
+      title: giveaway.title,
+      description: giveaway.description,
+      book_image_url: giveaway.book_image_url,
+      end_date: giveaway.end_date.split('T')[0],
+      is_active: giveaway.is_active
+    });
+    setShowCreateModal(true);
   };
 
   const handleDeleteGiveaway = (id: string) => {
@@ -194,7 +216,9 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     if (!e.target.files?.[0]) return;
     setUploading(true);
     try {
-      const url = await uploadFile('giveaways', e.target.files[0]);
+      const originalFile = e.target.files[0];
+      const compressedFile = await compressImage(originalFile, 0.4, 1000);
+      const url = await uploadFile('giveaways', compressedFile);
       setNewGiveaway(prev => ({ ...prev, book_image_url: url }));
     } catch (err) {
       alert('Erro no upload da imagem.');
@@ -214,7 +238,17 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setEditingGiveaway(null);
+              setNewGiveaway({
+                title: '',
+                description: '',
+                book_image_url: '',
+                end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                is_active: true
+              });
+              setShowCreateModal(true);
+            }}
             className="bg-black text-yellow-400 p-3 rounded-2xl shadow-xl hover:scale-110 transition-all"
           >
             <Plus size={24} />
@@ -272,12 +306,22 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                   )}
 
                   {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteGiveaway(giveaway.id)}
-                      className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditClick(giveaway)}
+                        className="p-4 bg-blue-50 text-blue-500 rounded-2xl hover:bg-blue-100 transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 size={20} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGiveaway(giveaway.id)}
+                        className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -295,8 +339,8 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[20000] flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl my-auto">
-            <h3 className="text-2xl font-black font-serif italic mb-6">Novo Sorteio</h3>
-            <form onSubmit={handleCreateGiveaway} className="space-y-4">
+            <h3 className="text-2xl font-black font-serif italic mb-6">{editingGiveaway ? 'Editar Sorteio' : 'Novo Sorteio'}</h3>
+            <form onSubmit={handleSaveGiveaway} className="space-y-4">
               <div className="relative group cursor-pointer">
                 <div className="w-full h-40 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center overflow-hidden relative">
                   {uploading ? (
@@ -342,7 +386,9 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                 required
               />
               <div className="flex gap-4 pt-4">
-                <button type="submit" className="flex-1 bg-black text-yellow-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px]">Criar Sorteio</button>
+                <button type="submit" className="flex-1 bg-black text-yellow-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px]">
+                  {editingGiveaway ? 'Salvar Edição' : 'Criar Sorteio'}
+                </button>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 bg-gray-100 text-gray-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px]">Cancelar</button>
               </div>
             </form>

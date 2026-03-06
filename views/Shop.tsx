@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, MessageCircle, Plus, Trash2, X, Tag, Camera, Loader2, BookOpen } from 'lucide-react';
+import { ShoppingBag, MessageCircle, Plus, Trash2, X, Tag, Camera, Loader2, BookOpen, Edit2 } from 'lucide-react';
 import { Book, Profile } from '../types';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 
@@ -25,6 +25,7 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [newBook, setNewBook] = useState({ title: '', author: '', price: '', cover_url: '', description: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -89,33 +90,62 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
     }
   };
 
-  const handleAddBook = async () => {
+  const handleSaveBook = async () => {
     if (!newBook.title || !newBook.price || !newBook.cover_url) {
       alert('Preencha título, preço e selecione a foto.');
       return;
     }
 
     try {
-      if (!isSupabaseConfigured) {
-        const bookToAdd: Book = { ...newBook, id: Math.random().toString(36).substr(2, 9) };
-        const updated = [bookToAdd, ...books];
-        setBooks(updated);
-        localStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify(updated));
-      } else {
-        const { error } = await supabase
-          .from('shop_books')
-          .insert([newBook]);
+      if (editingBook) {
+        if (!isSupabaseConfigured) {
+          const updated = books.map(b => b.id === editingBook.id ? { ...b, ...newBook } : b);
+          setBooks(updated);
+          localStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify(updated));
+        } else {
+          const { error } = await supabase
+            .from('shop_books')
+            .update(newBook)
+            .eq('id', editingBook.id);
 
-        if (error) throw error;
-        await fetchBooks();
+          if (error) throw error;
+          await fetchBooks();
+        }
+      } else {
+        if (!isSupabaseConfigured) {
+          const bookToAdd: Book = { ...newBook, id: Math.random().toString(36).substr(2, 9) };
+          const updated = [bookToAdd, ...books];
+          setBooks(updated);
+          localStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify(updated));
+        } else {
+          const { error } = await supabase
+            .from('shop_books')
+            .insert([newBook]);
+
+          if (error) throw error;
+          await fetchBooks();
+        }
       }
 
       setShowAddModal(false);
+      setEditingBook(null);
       setNewBook({ title: '', author: '', price: '', cover_url: '', description: '' });
     } catch (err) {
-      console.error('Erro ao adicionar livro:', err);
+      console.error('Erro ao salvar livro:', err);
       alert('Erro ao salvar livro no banco de dados.');
     }
+  };
+
+  const handleEditClick = (book: Book) => {
+    setEditingBook(book);
+    setNewBook({
+      title: book.title,
+      author: book.author || '',
+      price: book.price || '',
+      cover_url: book.cover_url || '',
+      description: book.description || ''
+    });
+    setShowAddModal(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -150,7 +180,11 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
 
         {isAdmin && (
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setEditingBook(null);
+              setNewBook({ title: '', author: '', price: '', cover_url: '', description: '' });
+              setShowAddModal(true);
+            }}
             className="mt-6 flex items-center gap-2 bg-black text-yellow-400 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-all shadow-lg"
           >
             <Plus size={16} strokeWidth={3} /> Novo Livro
@@ -178,13 +212,22 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
                   {book.price}
                 </div>
                 {isAdmin && (
-                  <button
-                    onClick={() => handleDelete(book.id)}
-                    className="absolute top-2 left-2 bg-red-500 text-white p-2 rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all z-10"
-                    title="Remover da Vitrine"
-                  >
-                    <Trash2 size={14} strokeWidth={2.5} />
-                  </button>
+                  <div className="absolute top-2 left-2 flex gap-1 z-10">
+                    <button
+                      onClick={() => handleEditClick(book)}
+                      className="bg-blue-500 text-white p-2 rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all"
+                      title="Editar"
+                    >
+                      <Edit2 size={14} strokeWidth={2.5} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(book.id)}
+                      className="bg-red-500 text-white p-2 rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all"
+                      title="Remover da Vitrine"
+                    >
+                      <Trash2 size={14} strokeWidth={2.5} />
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="p-2 flex flex-col flex-1">
@@ -217,7 +260,9 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-md p-6 md:p-10 shadow-2xl relative max-h-[95vh] overflow-y-auto">
             <button onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16} /></button>
-            <h3 className="text-xl font-black text-gray-900 font-serif mb-6">Novo Item na Vitrine</h3>
+            <h3 className="text-xl font-black text-gray-900 font-serif mb-6">
+              {editingBook ? 'Editar Livro' : 'Novo Item na Vitrine'}
+            </h3>
 
             <div className="space-y-4">
               <div className="flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-4 group hover:border-yellow-400 transition-colors cursor-pointer relative overflow-hidden h-32" onClick={() => fileInputRef.current?.click()}>
@@ -244,11 +289,11 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
               </div>
 
               <button
-                onClick={handleAddBook}
+                onClick={handleSaveBook}
                 disabled={uploading}
                 className="w-full bg-black text-yellow-400 font-black py-4 rounded-xl uppercase tracking-widest text-[10px] shadow-lg mt-4"
               >
-                {uploading ? 'Subindo Imagem...' : 'Publicar na Vitrine'}
+                {uploading ? 'Subindo Imagem...' : (editingBook ? 'Salvar Edição' : 'Publicar na Vitrine')}
               </button>
             </div>
           </div>

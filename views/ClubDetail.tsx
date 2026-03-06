@@ -23,6 +23,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
   const [isMember, setIsMember] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'members' | 'info'>('posts');
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -302,7 +303,15 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
 
             {posts.length > 0 ? (
               posts.map(post => (
-                <PostCard key={post.id} post={post} currentUser={profile} />
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  currentUser={profile}
+                  onEdit={(p) => {
+                    setEditingPost(p);
+                    setShowCreatePost(true);
+                  }}
+                />
               ))
             ) : (
               <div className="text-center py-20 italic text-gray-400">
@@ -370,10 +379,14 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
       </div>
 
       <CreatePostModal
-        isOpen={showCreatePost}
-        onClose={() => setShowCreatePost(false)}
+        isOpen={showCreatePost || !!editingPost}
+        onClose={() => {
+          setShowCreatePost(false);
+          setEditingPost(null);
+        }}
         clubId={id}
         onPostCreated={fetchClubData}
+        editingPost={editingPost || undefined}
       />
 
       <ConfirmModal

@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Plus, BookOpen, ChevronRight, Search, X, ArrowLeft, Trash2 } from 'lucide-react';
+import { Users, Plus, BookOpen, ChevronRight, Search, X, ArrowLeft, Trash2, Edit2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { BookClub, Profile } from '../types';
+import { compressImage } from '../src/utils/imageUtils';
 
 interface BookClubsProps {
   profile: Profile | null;
@@ -22,6 +23,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
   const [newBook, setNewBook] = useState('');
   const [newImageUrl, setNewImageUrl] = useState('https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&q=80&w=800');
   const [uploading, setUploading] = useState(false);
+  const [editingClubId, setEditingClubId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClubs();
@@ -32,7 +34,9 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
     setUploading(true);
     try {
       const { uploadFile } = await import('../supabase');
-      const url = await uploadFile('posts', e.target.files[0]);
+      const originalFile = e.target.files[0];
+      const compressedFile = await compressImage(originalFile, 0.4, 1000);
+      const url = await uploadFile('posts', compressedFile);
       setNewImageUrl(url);
     } catch (err) {
       alert('Erro no upload da imagem.');
@@ -87,7 +91,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
   const handleCreateClub = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
-    
+
     const clubData = {
       name: newName,
       description: newDesc,
@@ -100,41 +104,64 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
     };
 
     if (!isSupabaseConfigured) {
-      const club: BookClub = {
-        id: Math.random().toString(36).substr(2, 9),
-        ...clubData
-      };
-      const updated = [club, ...clubs];
-      setClubs(updated);
-      localStorage.setItem(CLUBS_STORAGE_KEY, JSON.stringify(updated));
+      if (editingClubId) {
+        const updated = clubs.map(c => c.id === editingClubId ? { ...c, ...clubData } : c);
+        setClubs(updated);
+        localStorage.setItem(CLUBS_STORAGE_KEY, JSON.stringify(updated));
+      } else {
+        const club: BookClub = {
+          id: Math.random().toString(36).substr(2, 9),
+          ...clubData
+        };
+        const updated = [club, ...clubs];
+        setClubs(updated);
+        localStorage.setItem(CLUBS_STORAGE_KEY, JSON.stringify(updated));
+      }
     } else {
       try {
-        const { error } = await supabase.from('book_clubs').insert(clubData);
-        if (error) throw error;
+        if (editingClubId) {
+          const { error } = await supabase.from('book_clubs').update(clubData).eq('id', editingClubId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('book_clubs').insert(clubData);
+          if (error) throw error;
+        }
         fetchClubs();
       } catch (err) {
-        alert('Erro ao criar clube. Verifique se a tabela book_clubs existe no Supabase.');
+        alert('Erro ao salvar clube. Verifique se a tabela book_clubs existe no Supabase.');
       }
     }
 
     setShowCreateModal(false);
+    setEditingClubId(null);
     setNewName(''); setNewDesc(''); setNewBook('');
     setNewImageUrl('https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&q=80&w=800');
   };
 
-  const filteredClubs = clubs.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const handleEditClub = (e: React.MouseEvent, club: BookClub) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingClubId(club.id);
+    setNewName(club.name);
+    setNewDesc(club.description);
+    setNewBook(club.current_book);
+    setNewImageUrl(club.image_url);
+    setShowCreateModal(true);
+  };
+
+  const filteredClubs = clubs.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.current_book.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isAdmin = profile?.role === 'admin' || 
-                  profile?.username === 'nobel_oficial' || 
-                  profile?.username === 'nobelpetro';
+  const isAdmin = profile?.role === 'admin' ||
+    profile?.username === 'nobel_oficial' ||
+    profile?.username === 'nobelpetro';
 
   const handleDeleteClub = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Removido window.confirm para evitar travamentos
     const confirmed = true;
 
@@ -167,7 +194,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
 
       <div className="relative mb-8">
         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input 
+        <input
           type="text"
           placeholder="Buscar clubes de leitores..."
           className="w-full pl-10 pr-10 py-3 bg-white border border-gray-100 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-yellow-400 text-sm font-bold text-black"
@@ -180,15 +207,24 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
         {filteredClubs.length > 0 ? filteredClubs.map(club => (
           <div key={club.id} className="relative group">
             {isAdmin && (
-              <button 
-                onClick={(e) => handleDeleteClub(e, club.id)}
-                className="absolute -top-2 -right-2 p-3 bg-red-500 text-white rounded-full shadow-xl hover:scale-110 transition-all z-30 border-4 border-white"
-                title="Excluir Clube"
-              >
-                <Trash2 size={16} strokeWidth={3} />
-              </button>
+              <div className="absolute -top-2 -right-2 flex gap-1 z-30">
+                <button
+                  onClick={(e) => handleEditClub(e, club)}
+                  className="p-3 bg-blue-500 text-white rounded-full shadow-xl hover:scale-110 transition-all border-4 border-white"
+                  title="Editar Clube"
+                >
+                  <Edit2 size={16} strokeWidth={3} />
+                </button>
+                <button
+                  onClick={(e) => handleDeleteClub(e, club.id)}
+                  className="p-3 bg-red-500 text-white rounded-full shadow-xl hover:scale-110 transition-all border-4 border-white"
+                  title="Excluir Clube"
+                >
+                  <Trash2 size={16} strokeWidth={3} />
+                </button>
+              </div>
             )}
-            <Link 
+            <Link
               to={`/clubs/${club.id}`}
               className="bg-white border border-gray-100 rounded-[2rem] p-5 flex items-center gap-5 hover:shadow-xl hover:scale-[1.01] transition-all"
             >
@@ -217,7 +253,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
       </div>
 
       {/* FAB - Fundar Clube */}
-      <button 
+      <button
         onClick={() => setShowCreateModal(true)}
         className="fixed bottom-24 right-6 bg-yellow-400 text-black p-4 rounded-2xl shadow-2xl hover:scale-110 active:scale-95 transition-all z-50 border-4 border-white flex items-center gap-2 pr-6"
       >
@@ -228,18 +264,23 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl relative my-auto border border-gray-100">
-            <button 
-              onClick={() => setShowCreateModal(false)} 
+            <button
+              onClick={() => {
+                setShowCreateModal(false);
+                setEditingClubId(null);
+                setNewName(''); setNewDesc(''); setNewBook('');
+                setNewImageUrl('https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&q=80&w=800');
+              }}
               className="absolute top-6 right-6 p-2 bg-gray-50 rounded-full hover:bg-black hover:text-white transition-all"
             >
               <X size={16} />
             </button>
-            
+
             <div className="mb-8">
-              <h3 className="text-2xl font-black text-gray-900 font-serif">Fundar seu Clube</h3>
+              <h3 className="text-2xl font-black text-gray-900 font-serif">{editingClubId ? 'Editar Clube' : 'Fundar seu Clube'}</h3>
               <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">Comunidade Petrópolis literária</p>
             </div>
-            
+
             <form onSubmit={handleCreateClub} className="space-y-6">
               <div className="flex flex-col items-center gap-4">
                 <div className="w-32 h-44 bg-gray-100 rounded-2xl overflow-hidden shadow-xl border-4 border-yellow-400 relative group cursor-pointer" onClick={() => document.getElementById('club-image-upload')?.click()}>
@@ -259,46 +300,51 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
 
               <div>
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2 block">Nome do Clube</label>
-                <input 
-                  required 
+                <input
+                  required
                   placeholder="Ex: Leitores de Inverno"
-                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-200 rounded-xl outline-none font-bold focus:bg-white focus:border-yellow-400 transition-all placeholder:text-gray-300" 
-                  value={newName} 
-                  onChange={e => setNewName(e.target.value)} 
+                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-200 rounded-xl outline-none font-bold focus:bg-white focus:border-yellow-400 transition-all placeholder:text-gray-300"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
                 />
               </div>
               <div>
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2 block">Breve Descrição</label>
-                <textarea 
-                  required 
+                <textarea
+                  required
                   placeholder="Conte o propósito do seu clube..."
-                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-200 rounded-xl outline-none text-xs font-medium italic focus:bg-white focus:border-yellow-400 transition-all placeholder:text-gray-300" 
-                  rows={3} 
-                  value={newDesc} 
-                  onChange={e => setNewDesc(e.target.value)} 
+                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-200 rounded-xl outline-none text-xs font-medium italic focus:bg-white focus:border-yellow-400 transition-all placeholder:text-gray-300"
+                  rows={3}
+                  value={newDesc}
+                  onChange={e => setNewDesc(e.target.value)}
                 />
               </div>
               <div>
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2 block">Primeiro Livro</label>
-                <input 
-                  required 
+                <input
+                  required
                   placeholder="Ex: Torto Arado"
-                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-200 rounded-xl outline-none font-bold focus:bg-white focus:border-yellow-400 transition-all placeholder:text-gray-300" 
-                  value={newBook} 
-                  onChange={e => setNewBook(e.target.value)} 
+                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-200 rounded-xl outline-none font-bold focus:bg-white focus:border-yellow-400 transition-all placeholder:text-gray-300"
+                  value={newBook}
+                  onChange={e => setNewBook(e.target.value)}
                 />
               </div>
 
               <div className="flex flex-col gap-3 pt-2">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="w-full bg-black text-yellow-400 font-black py-5 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest text-[11px]"
                 >
-                  Fundar e Publicar
+                  {editingClubId ? 'Salvar Edição' : 'Fundar e Publicar'}
                 </button>
-                <button 
+                <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setEditingClubId(null);
+                    setNewName(''); setNewDesc(''); setNewBook('');
+                    setNewImageUrl('https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&q=80&w=800');
+                  }}
                   className="w-full bg-white text-gray-400 border border-gray-100 font-black py-4 rounded-2xl hover:bg-gray-50 transition-all uppercase tracking-widest text-[9px] flex items-center justify-center gap-2"
                 >
                   <ArrowLeft size={14} /> Voltar e Explorar

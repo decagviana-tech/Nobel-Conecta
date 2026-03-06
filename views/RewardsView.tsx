@@ -15,7 +15,8 @@ import {
   Loader2,
   X,
   ChevronRight,
-  Coins
+  Coins,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -43,6 +44,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
   const [newImageUrl, setNewImageUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'available' | 'my_redemptions'>('available');
   const [error, setError] = useState<string | null>(null);
+  const [editingReward, setEditingReward] = useState<Reward | null>(null);
 
   const isAdmin = profile?.role === 'admin' ||
     profile?.username === 'nobel_oficial' ||
@@ -176,7 +178,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     }
   };
 
-  const handleCreateReward = async () => {
+  const handleSaveReward = async () => {
     if (!newReward.title?.trim() || !newReward.description?.trim()) {
       alert('Por favor, preencha o Título e a Descrição do prêmio.');
       return;
@@ -192,37 +194,57 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
 
       const rewardData: any = {
         ...rewardFields,
-        image_url: newImageUrl,
-        created_at: new Date().toISOString()
+        image_url: newImageUrl || newReward.image_url,
       };
 
+      if (!editingReward) {
+        rewardData.created_at = new Date().toISOString();
+      }
+
       if (newReward.type === 'gift') {
-        rewardData.stock = newReward.stock;
+        if (newReward.stock !== undefined) {
+          rewardData.stock = newReward.stock;
+        } else {
+          rewardData.stock = 0;
+        }
       }
 
       if (!isSupabaseConfigured) {
-        const newRewardObj = {
-          ...rewardData,
-          id: `demo-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          is_active: true,
-          stock: newReward.stock || 0
-        } as Reward;
-
-        setRewards(prev => {
-          const updated = [...prev, newRewardObj];
-          localStorage.setItem('nobel_conecta_demo_rewards', JSON.stringify(updated));
-          return updated;
-        });
-
-        alert('Recompensa criada com sucesso (Modo Demo)!');
+        if (editingReward) {
+          const updatedRewards = rewards.map(r => r.id === editingReward.id ? { ...r, ...rewardData } : r);
+          setRewards(updatedRewards);
+          localStorage.setItem('nobel_conecta_demo_rewards', JSON.stringify(updatedRewards));
+          alert('Recompensa editada com sucesso (Modo Demo)!');
+        } else {
+          const newRewardObj = {
+            ...rewardData,
+            id: `demo-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            is_active: true,
+            stock: newReward.stock || 0
+          } as Reward;
+          setRewards(prev => {
+            const updated = [...prev, newRewardObj];
+            localStorage.setItem('nobel_conecta_demo_rewards', JSON.stringify(updated));
+            return updated;
+          });
+          alert('Recompensa criada com sucesso (Modo Demo)!');
+        }
       } else {
-        const { error } = await supabase.from('rewards').insert([rewardData]);
-        if (error) throw error;
-        fetchRewards();
-        alert('Recompensa criada com sucesso!');
+        if (editingReward) {
+          const { error } = await supabase.from('rewards').update(rewardData).eq('id', editingReward.id);
+          if (error) throw error;
+          fetchRewards();
+          alert('Recompensa editada com sucesso!');
+        } else {
+          const { error } = await supabase.from('rewards').insert([rewardData]);
+          if (error) throw error;
+          fetchRewards();
+          alert('Recompensa criada com sucesso!');
+        }
       }
 
       setShowCreateModal(false);
+      setEditingReward(null);
       setNewReward({
         title: '',
         description: '',
@@ -233,9 +255,24 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       });
       setNewImageUrl('');
     } catch (err: any) {
-      console.error('Erro ao criar recompensa:', err);
-      alert(`Erro ao criar recompensa: ${err.message || 'Erro desconhecido'}`);
+      console.error('Erro ao salvar recompensa:', err);
+      alert(`Erro ao salvar recompensa: ${err.message || 'Erro desconhecido'}`);
     }
+  };
+
+  const handleEditClick = (reward: Reward) => {
+    setEditingReward(reward);
+    setNewReward({
+      title: reward.title,
+      description: reward.description || '',
+      points_required: reward.points_required,
+      type: reward.type as any,
+      is_active: reward.is_active,
+      stock: reward.stock || 0,
+      image_url: reward.image_url || ''
+    });
+    setNewImageUrl(reward.image_url || '');
+    setShowCreateModal(true);
   };
 
   const handleDeleteReward = async (id: string) => {
@@ -499,7 +536,12 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         <>
           {isAdmin && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                setEditingReward(null);
+                setNewReward({ title: '', description: '', points_required: 100, type: 'discount', is_active: true, stock: 10 });
+                setNewImageUrl('');
+                setShowCreateModal(true);
+              }}
               className="w-full mb-8 py-4 bg-white border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center gap-3 text-gray-400 hover:border-yellow-400 hover:text-yellow-500 transition-all group"
             >
               <Plus size={20} className="group-hover:scale-110 transition-transform" />
@@ -600,49 +642,63 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                       </button>
 
                       {isAdmin && (
-                        <div className="relative">
-                          <AnimatePresence mode="wait">
-                            {rewardToDelete === reward.id ? (
-                              <motion.div
-                                key="confirm"
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                className="flex items-center gap-2 bg-red-50 p-2 rounded-2xl border border-red-100"
-                              >
-                                <button
-                                  onClick={() => handleDeleteReward(reward.id)}
-                                  className="px-3 py-2 bg-red-500 text-white rounded-xl font-black uppercase tracking-widest text-[8px] hover:bg-red-600 transition-colors"
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleEditClick(reward);
+                            }}
+                            className="p-4 bg-blue-50 text-blue-500 rounded-2xl hover:bg-blue-100 transition-all cursor-pointer flex items-center justify-center"
+                            title="Editar recompensa"
+                          >
+                            <Edit2 size={20} />
+                          </button>
+
+                          <div className="relative">
+                            <AnimatePresence mode="wait">
+                              {rewardToDelete === reward.id ? (
+                                <motion.div
+                                  key="confirm"
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.8 }}
+                                  className="flex items-center gap-2 bg-red-50 p-2 rounded-2xl border border-red-100"
                                 >
-                                  Sim, Excluir
-                                </button>
-                                <button
-                                  onClick={() => setRewardToDelete(null)}
-                                  className="p-2 text-gray-400 hover:text-gray-600"
+                                  <button
+                                    onClick={() => handleDeleteReward(reward.id)}
+                                    className="px-3 py-2 bg-red-500 text-white rounded-xl font-black uppercase tracking-widest text-[8px] hover:bg-red-600 transition-colors"
+                                  >
+                                    Sim, Excluir
+                                  </button>
+                                  <button
+                                    onClick={() => setRewardToDelete(null)}
+                                    className="p-2 text-gray-400 hover:text-gray-600"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                </motion.div>
+                              ) : (
+                                <motion.button
+                                  key="delete"
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.8 }}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    console.log('Botão de lixeira clicado para ID:', reward.id);
+                                    setRewardToDelete(reward.id);
+                                  }}
+                                  className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all cursor-pointer relative z-20 flex items-center justify-center"
+                                  title="Excluir recompensa"
                                 >
-                                  <X size={16} />
-                                </button>
-                              </motion.div>
-                            ) : (
-                              <motion.button
-                                key="delete"
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  console.log('Botão de lixeira clicado para ID:', reward.id);
-                                  setRewardToDelete(reward.id);
-                                }}
-                                className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-all cursor-pointer relative z-20 flex items-center justify-center"
-                                title="Excluir recompensa"
-                              >
-                                <Trash2 size={20} />
-                              </motion.button>
-                            )}
-                          </AnimatePresence>
+                                  <Trash2 size={20} />
+                                </motion.button>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -711,7 +767,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
               className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               <div className="p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <h2 className="text-2xl font-black tracking-tighter font-serif italic">Novo Prêmio</h2>
+                <h2 className="text-2xl font-black tracking-tighter font-serif italic">{editingReward ? 'Editar Prêmio' : 'Novo Prêmio'}</h2>
                 <button
                   onClick={() => setShowCreateModal(false)}
                   className="p-2 hover:bg-gray-100 rounded-full transition-all"
@@ -815,10 +871,10 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
 
                 <div className="flex gap-4 mt-8 pt-4 border-t border-gray-50">
                   <button
-                    onClick={handleCreateReward}
+                    onClick={handleSaveReward}
                     className="flex-1 bg-black text-yellow-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:scale-[1.02] transition-all"
                   >
-                    Criar Prêmio
+                    {editingReward ? 'Salvar Edição' : 'Criar Prêmio'}
                   </button>
                   <button
                     onClick={() => setShowCreateModal(false)}

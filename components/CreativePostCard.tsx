@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MessageSquare, Share2, Trash2, Quote, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Image as ImageIcon, Download, Loader2 } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Trash2, Edit2, Quote, User as UserIcon, Send, ChevronDown, ChevronUp, BookOpen, Image as ImageIcon, Download, Loader2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
@@ -15,10 +15,11 @@ interface CreativePostCardProps {
   post: Post;
   currentProfile: Profile | null;
   onDelete?: (postId: string) => void;
+  onEdit?: (post: Post) => void;
   isAdmin: boolean;
 }
 
-const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfile, onDelete, isAdmin }) => {
+const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfile, onDelete, onEdit, isAdmin }) => {
   const [liked, setLiked] = useState(post.user_has_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [isLiking, setIsLiking] = useState(false);
@@ -427,19 +428,34 @@ Veja o texto completo no Nobel Conecta:
           </div>
         </Link>
         {(isAdmin || isOwner) && (
-          <button
-            onClick={() => {
-              if (onDelete) {
-                onDelete(post.id);
-              } else {
-                console.warn('onDelete prop not provided to CreativePostCard');
-              }
-            }}
-            className="p-3 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all z-10"
-            title="Excluir Texto"
-          >
-            <Trash2 size={20} strokeWidth={2.5} />
-          </button>
+          <div className="flex items-center gap-2 z-10">
+            {isOwner && onEdit && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEdit(post);
+                }}
+                className="p-3 bg-blue-50 text-blue-500 rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all"
+                title="Editar Texto"
+              >
+                <Edit2 size={20} strokeWidth={2.5} />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (onDelete) {
+                  onDelete(post.id);
+                } else {
+                  console.warn('onDelete prop not provided to CreativePostCard');
+                }
+              }}
+              className="p-3 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all"
+              title="Excluir Texto"
+            >
+              <Trash2 size={20} strokeWidth={2.5} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -464,15 +480,6 @@ Veja o texto completo no Nobel Conecta:
             {showComments ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
           <div className="flex items-center gap-3 ml-auto">
-            <button
-              onClick={handleShareImage}
-              disabled={isGeneratingImage}
-              className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700 transition-colors"
-              title="Compartilhar como Imagem"
-            >
-              {isGeneratingImage ? <Loader2 className="animate-spin" size={22} /> : <ImageIcon size={22} />}
-              <span className="text-xs font-black hidden md:inline">Imagem</span>
-            </button>
             <button onClick={handleShare} className="flex items-center gap-2 text-gray-400 hover:text-black transition-colors" title="Compartilhar Link">
               <Share2 size={22} />
               <span className="text-xs font-black hidden md:inline">Link</span>

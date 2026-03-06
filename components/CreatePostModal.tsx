@@ -4,6 +4,7 @@ import { X, Camera, Star, Loader2, PenTool, BookOpen } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { awardPoints } from '../src/services/pointsService';
 import { Post, Profile } from '../types';
+import { compressImage } from '../src/utils/imageUtils';
 
 interface CreatePostModalProps {
   userId: string;
@@ -11,15 +12,16 @@ interface CreatePostModalProps {
   onClose: () => void;
   onSuccess: (newPost?: Post) => void;
   postType?: 'review' | 'creative';
+  editingPost?: Post;
 }
 
-const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfile, onClose, onSuccess, postType = 'review' }) => {
+const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfile, onClose, onSuccess, postType = 'review', editingPost }) => {
   const [loading, setLoading] = useState(false);
-  const [bookTitle, setBookTitle] = useState('');
-  const [bookAuthor, setBookAuthor] = useState('');
-  const [creativeTitle, setCreativeTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [rating, setRating] = useState(5);
+  const [bookTitle, setBookTitle] = useState(editingPost?.book_title || '');
+  const [bookAuthor, setBookAuthor] = useState(editingPost?.book_author || '');
+  const [creativeTitle, setCreativeTitle] = useState(editingPost?.title || '');
+  const [content, setContent] = useState(editingPost?.content || '');
+  const [rating, setRating] = useState(editingPost?.rating || 5);
   const [images, setImages] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,7 +46,9 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
       const imageUrls: string[] = [];
       for (const file of images) {
         try {
-          const url = await uploadFile('posts', file);
+          // Compressão aplicada nas imagens da timeline/resenhas
+          const compressedFile = await compressImage(file, 0.4, 1000);
+          const url = await uploadFile('posts', compressedFile);
           imageUrls.push(url);
         } catch (uploadErr) {
           console.error('Error uploading post image:', uploadErr);
@@ -54,10 +58,20 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
       const postData: any = {
         user_id: userId,
         content: content,
-        images: imageUrls,
-        created_at: new Date().toISOString(),
         type: postType
       };
+
+      if (!editingPost) {
+        postData.created_at = new Date().toISOString();
+      }
+
+      if (imageUrls.length > 0) {
+        postData.images = editingPost?.images ? [...editingPost.images, ...imageUrls] : imageUrls;
+      } else if (editingPost?.images) {
+        postData.images = editingPost.images;
+      } else {
+        postData.images = [];
+      }
 
       if (isCreative) {
         postData.title = creativeTitle || 'Texto sem título';
@@ -71,10 +85,10 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         setTimeout(() => {
           onSuccess({
             ...postData,
-            id: Math.random().toString(36).substr(2, 9),
-            likes_count: 0,
-            comments_count: 0,
-            user_has_liked: false,
+            id: editingPost?.id || Math.random().toString(36).substr(2, 9),
+            likes_count: editingPost?.likes_count || 0,
+            comments_count: editingPost?.comments_count || 0,
+            user_has_liked: editingPost?.user_has_liked || false,
             author: currentProfile,
           });
           setLoading(false);
@@ -82,21 +96,28 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         return;
       }
 
-      const { error } = await supabase.from('posts').insert(postData);
+      if (editingPost) {
+        const { error } = await supabase.from('posts').update(postData).eq('id', editingPost.id);
+        if (error) {
+          console.error('Supabase update error:', error);
+          throw new Error(`Erro ao atualizar no banco: ${error.message}`);
+        }
+      } else {
+        const { error } = await supabase.from('posts').insert(postData);
+        if (error) {
+          console.error('Supabase insert error:', error);
+          throw new Error(`Erro ao salvar no banco: ${error.message}`);
+        }
 
-      if (error) {
-        console.error('Supabase insert error:', error);
-        throw new Error(`Erro ao salvar no banco: ${error.message}`);
-      }
-
-      // Ganho de pontos
-      try {
-        const actionType = postType === 'creative' ? 'creative' : 'review';
-        await awardPoints(userId, actionType, currentProfile);
-        const label = postType === 'creative' ? 'seu texto autoral' : 'sua resenha';
-        alert(`Parabéns! Você ganhou +10 pontos Nobel por ${label}.`);
-      } catch (pointsErr) {
-        console.warn('Erro ao atualizar pontos:', pointsErr);
+        // Ganho de pontos (apenas na criação)
+        try {
+          const actionType = postType === 'creative' ? 'creative' : 'review';
+          await awardPoints(userId, actionType, currentProfile);
+          const label = postType === 'creative' ? 'seu texto autoral' : 'sua resenha';
+          alert(`Parabéns! Você ganhou +10 pontos Nobel por ${label}.`);
+        } catch (pointsErr) {
+          console.warn('Erro ao atualizar pontos:', pointsErr);
+        }
       }
 
       onSuccess();
@@ -118,7 +139,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
             </div>
             <div>
               <h2 className="text-2xl font-black text-gray-900 font-serif">
-                {isCreative ? 'Mural Literário' : 'Nova Resenha'}
+                {isCreative ? (editingPost ? 'Editar Mural' : 'Mural Literário') : (editingPost ? 'Editar Resenha' : 'Nova Resenha')}
               </h2>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Incentive a leitura</p>
             </div>
@@ -132,7 +153,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
           {isCreative ? (
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Título da sua obra</label>
-              <input 
+              <input
                 className="w-full px-6 py-5 bg-white text-black border border-gray-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-black transition-all font-serif italic text-xl placeholder:text-gray-300 focus:bg-white"
                 placeholder="Ex: Noites na Rua 16..."
                 value={creativeTitle}
@@ -143,7 +164,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
             <div className="space-y-5">
               <div>
                 <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Título do Livro</label>
-                <input 
+                <input
                   required
                   className="w-full px-6 py-5 bg-white text-black border border-gray-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-yellow-400 transition-all font-bold placeholder:text-gray-300 focus:bg-white"
                   placeholder="Nome do livro que você leu"
@@ -153,7 +174,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
               </div>
               <div>
                 <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Autor</label>
-                <input 
+                <input
                   required
                   className="w-full px-6 py-5 bg-white text-black border border-gray-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-yellow-400 transition-all font-bold placeholder:text-gray-300 focus:bg-white"
                   placeholder="Quem escreveu?"
@@ -178,7 +199,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">
               {isCreative ? 'Seu Texto' : 'Sua Resenha'}
             </label>
-            <textarea 
+            <textarea
               required
               rows={isCreative ? 10 : 5}
               className="w-full px-6 py-5 bg-white text-black border border-gray-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-yellow-400 resize-none font-medium leading-relaxed placeholder:text-gray-300 transition-all focus:bg-white"
@@ -192,7 +213,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 ml-1 text-center md:text-left">Fotos do seu livro</label>
               <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                <button 
+                <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="w-24 h-24 border-2 border-dashed border-gray-200 rounded-[1.5rem] flex flex-col items-center justify-center text-gray-400 hover:text-yellow-500 hover:border-yellow-400 transition-all bg-white"
@@ -214,12 +235,12 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         </form>
 
         <div className="p-8 bg-gray-50 border-t flex gap-4">
-          <button 
+          <button
             onClick={handleSubmit}
             disabled={loading}
             className={`flex-1 py-6 rounded-[1.5rem] shadow-xl flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-xs font-black transition-all hover:scale-[1.02] active:scale-95 ${isCreative ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'}`}
           >
-            {loading ? <Loader2 className="animate-spin" /> : (isCreative ? 'Publicar no Mural' : 'Publicar Resenha')}
+            {loading ? <Loader2 className="animate-spin" /> : (isCreative ? (editingPost ? 'Salvar Edição' : 'Publicar no Mural') : (editingPost ? 'Salvar Edição' : 'Publicar Resenha'))}
           </button>
         </div>
       </div>
