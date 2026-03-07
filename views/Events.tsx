@@ -6,6 +6,7 @@ import { Profile, LibraryEvent as Event } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ConfirmModal from '../components/ConfirmModal';
+import { compressImage } from '../src/utils/imageUtils';
 
 interface EventsViewProps {
   profile: Profile | null;
@@ -159,15 +160,19 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
 
     setUploadingImage(true);
     try {
-      const fileExt = file.name.split('.').pop();
+      const compressedFile = await compressImage(file);
+      const fileExt = compressedFile.name.split('.').pop() || 'jpg';
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `events/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('events')
-        .upload(filePath, file);
+        .upload(filePath, compressedFile);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Detalhes do erro de upload:', uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('events')
@@ -175,7 +180,8 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
 
       setNewEvent({ ...newEvent, image_url: publicUrl });
     } catch (err) {
-      alert('Erro no upload da imagem');
+      console.error('Erro completo no upload da imagem:', err);
+      alert('Erro no upload da imagem. Verifique o tamanho do arquivo ou a configuração do Supabase.');
     } finally {
       setUploadingImage(false);
     }

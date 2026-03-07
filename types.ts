@@ -116,7 +116,8 @@ export interface Reward {
   title: string;
   description: string;
   points_required: number;
-  type: 'discount' | 'gift';
+  type: 'discount' | 'gift' | 'book';
+  genre?: string;
   image_url?: string;
   stock?: number;
   is_active: boolean;

@@ -6,6 +6,7 @@ import {
   Ticket,
   Gift,
   ShoppingBag,
+  Book,
   Plus,
   Trash2,
   CheckCircle2,
@@ -209,6 +210,14 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         }
       }
 
+      if (newReward.type === 'book') {
+        if (!newReward.genre?.trim()) {
+          alert('Por favor, preencha o Gênero do livro.');
+          return;
+        }
+        rewardData.genre = newReward.genre;
+      }
+
       if (!isSupabaseConfigured) {
         if (editingReward) {
           const updatedRewards = rewards.map(r => r.id === editingReward.id ? { ...r, ...rewardData } : r);
@@ -269,7 +278,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       type: reward.type as any,
       is_active: reward.is_active,
       stock: reward.stock || 0,
-      image_url: reward.image_url || ''
+      image_url: reward.image_url || '',
+      genre: reward.genre || ''
     });
     setNewImageUrl(reward.image_url || '');
     setShowCreateModal(true);
@@ -584,6 +594,11 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                           <Ticket size={32} strokeWidth={2.5} />
                           <span className="text-[9px] font-black uppercase tracking-widest mt-2 text-center px-1">10% DESCONTO</span>
                         </>
+                      ) : reward.type === 'book' ? (
+                        <>
+                          <Book size={32} strokeWidth={2.5} />
+                          <span className="text-[10px] font-black uppercase tracking-widest mt-2">LIVRO</span>
+                        </>
                       ) : (
                         <>
                           <Gift size={32} strokeWidth={2.5} />
@@ -600,12 +615,19 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                       <div className="flex items-center gap-2">
                         {reward.type === 'discount' ? (
                           <Ticket size={12} className="text-yellow-500" />
+                        ) : reward.type === 'book' ? (
+                          <Book size={12} className="text-yellow-500" />
                         ) : (
                           <ShoppingBag size={12} className="text-yellow-500" />
                         )}
                         <span className="text-[8px] font-black uppercase tracking-widest text-yellow-600">
-                          {reward.type === 'discount' ? 'Cupom' : 'Brinde'}
+                          {reward.type === 'discount' ? 'Cupom' : reward.type === 'book' ? 'Livro' : 'Brinde'}
                         </span>
+                        {reward.type === 'book' && reward.genre && (
+                          <span className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ml-1">
+                            {reward.genre}
+                          </span>
+                        )}
                       </div>
                       <div className="bg-black text-yellow-400 px-2 py-1 rounded-lg font-black text-[9px] uppercase tracking-widest">
                         {reward.points_required} pts
