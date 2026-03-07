@@ -89,7 +89,7 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
       <div className="w-full max-w-6xl md:bg-white md:rounded-[3rem] shadow-none md:shadow-[0_30px_70px_rgba(0,0,0,0.1)] md:border md:border-gray-100 flex flex-col md:flex-row overflow-hidden min-h-[100dvh] md:min-h-[800px] relative">
 
         {/* LEFT SIDE - Presentation / Landing Info (DARK MODE TEST) */}
-        <div className="w-full md:w-[55%] bg-black p-8 md:p-16 flex flex-col justify-center relative overflow-hidden text-white z-10 order-2 md:order-1">
+        <div className="w-full md:w-[55%] bg-black p-8 md:p-16 flex flex-col justify-center relative overflow-hidden text-white z-10">
           {/* Decorative Elements */}
           <div className="hidden md:block absolute top-0 right-0 w-64 h-64 bg-yellow-400 rounded-full blur-[100px] opacity-20 -translate-y-1/2 translate-x-1/3"></div>
           <div className="hidden md:block absolute bottom-0 left-0 w-80 h-80 bg-white rounded-full blur-[120px] opacity-10 translate-y-1/3 -translate-x-1/4"></div>
@@ -154,14 +154,25 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
               </div>
             </div>
 
-            <div className="mt-12 pt-8 border-t border-white/10 flex items-center justify-between">
+            <div className="mt-10 md:hidden">
+              <button
+                type="button"
+                onClick={() => document.getElementById('login-form')?.scrollIntoView({ behavior: 'smooth' })}
+                className="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-black py-5 rounded-[2rem] shadow-xl transition-all uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+              >
+                <LogIn size={20} />
+                Acessar minha conta
+              </button>
+            </div>
+
+            <div className="mt-10 md:mt-12 pt-8 border-t border-white/10 flex items-center justify-between">
               <p className="text-white/40 font-black uppercase text-[10px] tracking-[0.2em] mb-4 md:mb-0">Nobel Petrópolis &copy; 2026</p>
             </div>
           </div>
         </div>
 
         {/* RIGHT SIDE - The Form */}
-        <div className="flex-1 p-8 md:p-16 flex flex-col justify-center bg-white relative order-1 md:order-2">
+        <div id="login-form" className="flex-1 p-8 md:p-16 flex flex-col justify-center bg-white relative">
           {success && (
             <div className="absolute inset-0 bg-yellow-400 z-50 flex flex-col items-center justify-center animate-in fade-in duration-500">
               <CheckCircle2 size={64} className="text-black mb-4 animate-bounce" />
