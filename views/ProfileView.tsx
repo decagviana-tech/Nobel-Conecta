@@ -267,7 +267,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
               ) : profile?.avatar_url ? (
                 <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
               ) : (
-                <User size={56} className="text-yellow-200" />
+                <div className="flex flex-col items-center text-yellow-600/50 pt-2">
+                  <User size={36} className="mb-1" />
+                  {isOwnProfile && <span className="text-[9px] font-black uppercase tracking-tighter leading-tight text-center">Clique para<br />adicionar foto</span>}
+                </div>
               )}
             </div>
             {isOwnProfile && (

@@ -331,7 +331,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
                 className="bg-white p-4 rounded-3xl border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all"
               >
                 <img
-                  src={member.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
+                  src={member.avatar_url || `https://ui-avatars.com/api/?name=${member.username}&background=EAB308&color=000&bold=true`}
                   className="w-12 h-12 rounded-2xl border-2 border-gray-50"
                   alt={member.username}
                 />

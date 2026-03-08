@@ -224,10 +224,11 @@ VALUES
   ('avatars', 'avatars', true),
   ('posts', 'posts', true),
   ('rewards', 'rewards', true),
-  ('giveaways', 'giveaways', true)
+  ('giveaways', 'giveaways', true),
+  ('events', 'events', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage Policies
-CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id IN ('avatars', 'posts', 'rewards', 'giveaways') );
-CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK ( bucket_id IN ('avatars', 'posts', 'rewards', 'giveaways') AND auth.role() = 'authenticated' );
+CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id IN ('avatars', 'posts', 'rewards', 'giveaways', 'events') );
+CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK ( bucket_id IN ('avatars', 'posts', 'rewards', 'giveaways', 'events') AND auth.role() = 'authenticated' );
 */

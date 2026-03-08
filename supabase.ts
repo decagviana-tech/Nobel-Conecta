@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''; 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 const isPlaceHolder = (val: string) => !val || val.includes('sua-url') || val.includes('sua-chave') || val.includes('your-project') || val === 'your-anon-key';
@@ -9,7 +9,7 @@ const isPlaceHolder = (val: string) => !val || val.includes('sua-url') || val.in
 export const isSupabaseConfigured = !isPlaceHolder(SUPABASE_URL) && !isPlaceHolder(SUPABASE_KEY);
 
 export const supabase = createClient(
-  isSupabaseConfigured ? SUPABASE_URL : 'https://vazio.supabase.co', 
+  isSupabaseConfigured ? SUPABASE_URL : 'https://vazio.supabase.co',
   isSupabaseConfigured ? SUPABASE_KEY : 'mock-key',
   {
     auth: {
@@ -34,7 +34,7 @@ export async function uploadFile(bucket: string, file: File): Promise<string> {
     });
   }
 
-  const fileExt = file.name.split('.').pop();
+  const fileExt = file.name?.split('.').pop() || 'jpg';
   const fileName = `${Math.random()}.${fileExt}`;
   const filePath = `${fileName}`;
 

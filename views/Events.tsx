@@ -161,7 +161,7 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
     setUploadingImage(true);
     try {
       const compressedFile = await compressImage(file);
-      const fileExt = compressedFile.name.split('.').pop() || 'jpg';
+      const fileExt = compressedFile.name?.split('.').pop() || 'jpg';
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `events/${fileName}`;
 
@@ -242,13 +242,17 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
     if (!isAdmin) return;
 
     try {
+      // Auto-extract time from the ISO date to satisfy the "time" not-null constraint
+      const eventTime = newEvent.date ? new Date(newEvent.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '12:00';
+      const payload = { ...newEvent, time: eventTime, type: newEvent.type || 'upcoming' };
+
       if (!isSupabaseConfigured) {
         if (editingEvent) {
-          const updatedEvents = events.map(ev => ev.id === editingEvent.id ? { ...ev, ...newEvent } : ev);
+          const updatedEvents = events.map(ev => ev.id === editingEvent.id ? { ...ev, ...payload } : ev);
           setEvents(updatedEvents);
         } else {
           const newEvData = {
-            ...newEvent,
+            ...payload,
             id: Math.random().toString(),
             participants_count: 0,
             created_at: new Date().toISOString()
@@ -261,11 +265,11 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
       }
 
       if (editingEvent) {
-        const { error } = await supabase.from('events').update(newEvent).eq('id', editingEvent.id);
+        const { error } = await supabase.from('events').update(payload).eq('id', editingEvent.id);
         if (error) throw error;
         alert('Evento editado com sucesso!');
       } else {
-        const { error } = await supabase.from('events').insert([newEvent]);
+        const { error } = await supabase.from('events').insert([payload]);
         if (error) throw error;
         alert('Evento criado com sucesso!');
       }
@@ -273,8 +277,9 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
       setShowCreateModal(false);
       setEditingEvent(null);
       fetchEvents();
-    } catch (err) {
-      alert('Erro ao salvar evento.');
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao salvar evento: ${err.message || JSON.stringify(err)}`);
     }
   };
 
@@ -384,7 +389,10 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
                       <div className="flex items-center gap-2">
                         <Users size={16} className="text-yellow-600" />
                         <span className="text-lg font-black text-gray-900 tracking-tighter">
-                          {event.participants_count || 0} <span className="text-gray-300 font-medium">/ {event.max_participants}</span>
+                          {event.participants_count || 0}
+                          {event.max_participants !== 9999 && (
+                            <span className="text-gray-300 font-medium"> / {event.max_participants}</span>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -395,10 +403,10 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
                     ) : (
                       <button
                         onClick={() => handleParticipate(event.id)}
-                        disabled={(event.participants_count || 0) >= (event.max_participants || 0)}
+                        disabled={event.max_participants !== 9999 && (event.participants_count || 0) >= (event.max_participants || 0)}
                         className="bg-black text-yellow-400 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:scale-105 active:scale-95 transition-all"
                       >
-                        {(event.participants_count || 0) >= (event.max_participants || 0) ? 'Esgotado' : 'Participar'}
+                        {event.max_participants !== 9999 && (event.participants_count || 0) >= (event.max_participants || 0) ? 'Esgotado' : 'Participar'}
                       </button>
                     )}
                   </div>
@@ -537,10 +545,9 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
                     <input
                       type="number"
                       className="w-full pl-12 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-sm text-black"
-                      placeholder="Vagas"
-                      value={newEvent.max_participants}
-                      onChange={e => setNewEvent({ ...newEvent, max_participants: parseInt(e.target.value) })}
-                      required
+                      placeholder="Vagas (Opcional)"
+                      value={newEvent.max_participants || ''}
+                      onChange={e => setNewEvent({ ...newEvent, max_participants: e.target.value ? parseInt(e.target.value) : 9999 })}
                     />
                   </div>
                 </div>

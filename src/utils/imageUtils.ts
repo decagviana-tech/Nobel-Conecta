@@ -8,12 +8,16 @@ export async function compressImage(file: File, maxSizeMB: number = 0.5, maxWidt
     const options = {
         maxSizeMB: maxSizeMB,
         maxWidthOrHeight: maxWidthOrHeight,
-        useWebWorker: true,
+        useWebWorker: false, // Disabled Web Worker for better stability on WebViews/Mobile
     };
 
     try {
         const compressedFile = await imageCompression(file, options);
-        return compressedFile;
+        // Ensure the returned object is a File with a name, some devices return a Blob without a name
+        return new File([compressedFile], file.name || 'image.jpg', {
+            type: compressedFile.type || 'image/jpeg',
+            lastModified: Date.now()
+        });
     } catch (error) {
         console.warn('Erro ao comprimir imagem, retornando original:', error);
         return file;
