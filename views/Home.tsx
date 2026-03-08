@@ -57,7 +57,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
             id: 'admin-user',
             username: 'nobel_oficial',
             full_name: 'Livraria Nobel',
-            avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
+            avatar_url: '',
             role: 'admin',
             favorite_genres: ['Clássicos'],
             created_at: new Date().toISOString()
@@ -78,6 +78,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      console.log('Fetched posts data:', data);
       setPosts(data.map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
