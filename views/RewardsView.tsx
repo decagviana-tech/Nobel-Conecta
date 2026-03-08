@@ -185,8 +185,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       return;
     }
 
-    if (newReward.type === 'gift' && (newReward.stock === undefined || newReward.stock < 0)) {
-      alert('Para brindes, é necessário informar a quantidade em estoque.');
+    if ((newReward.type === 'gift' || newReward.type === 'book') && (newReward.stock === undefined || newReward.stock < 0)) {
+      alert('Para brindes e livros, é necessário informar a quantidade em estoque.');
       return;
     }
 
@@ -202,7 +202,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         rewardData.created_at = new Date().toISOString();
       }
 
-      if (newReward.type === 'gift') {
+      if (newReward.type === 'gift' || newReward.type === 'book') {
         if (newReward.stock !== undefined) {
           rewardData.stock = newReward.stock;
         } else {
@@ -365,8 +365,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       return;
     }
 
-    if (reward.type === 'gift' && reward.stock !== undefined && reward.stock <= 0) {
-      alert('Este brinde está esgotado.');
+    if ((reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined && reward.stock <= 0) {
+      alert('Este item está esgotado.');
       return;
     }
 
@@ -402,7 +402,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             localStorage.setItem('nobel_demo_redemptions', JSON.stringify(updatedRedemptions));
 
             // Update local rewards stock
-            if (reward.type === 'gift' && reward.stock !== undefined) {
+            if ((reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined) {
               setRewards(rewards.map(r => r.id === reward.id ? { ...r, stock: r.stock! - 1 } : r));
             }
 
@@ -424,8 +424,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
 
             if (redemptionError) throw redemptionError;
 
-            // Update stock if it's a gift
-            if (reward.type === 'gift' && reward.stock !== undefined) {
+            // Update stock if it's a gift or book
+            if ((reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined) {
               await supabase
                 .from('rewards')
                 .update({ stock: reward.stock - 1 })
@@ -637,7 +637,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                     <h3 className="text-lg font-black tracking-tight text-gray-900 mb-1 font-serif italic truncate">{reward.title}</h3>
                     <p className="text-gray-500 text-xs mb-4 line-clamp-2 italic">"{reward.description}"</p>
 
-                    {reward.type === 'gift' && reward.stock !== undefined && (
+                    {(reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined && (
                       <div className="mb-4 flex items-center gap-2">
                         <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
                           <div
@@ -654,8 +654,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                     <div className="flex gap-2 mt-auto">
                       <button
                         onClick={() => handleRedeem(reward)}
-                        disabled={(profile?.points || 0) < reward.points_required || (reward.type === 'gift' && reward.stock === 0)}
-                        className={`flex-1 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all ${(profile?.points || 0) >= reward.points_required && (reward.type !== 'gift' || (reward.stock || 0) > 0)
+                        disabled={(profile?.points || 0) < reward.points_required || ((reward.type === 'gift' || reward.type === 'book') && reward.stock === 0)}
+                        className={`flex-1 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all ${(profile?.points || 0) >= reward.points_required && ((reward.type !== 'gift' && reward.type !== 'book') || (reward.stock || 0) > 0)
                           ? 'bg-yellow-400 text-black hover:bg-yellow-500 shadow-md'
                           : 'bg-gray-50 text-gray-300 cursor-not-allowed'
                           }`}
@@ -856,15 +856,29 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Tipo</label>
                       <select
                         value={newReward.type}
-                        onChange={(e) => setNewReward({ ...newReward, type: e.target.value as 'discount' | 'gift' })}
+                        onChange={(e) => setNewReward({ ...newReward, type: e.target.value as 'discount' | 'gift' | 'book' })}
                         className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-yellow-400 font-bold text-sm"
                       >
                         <option value="discount">Cupom</option>
                         <option value="gift">Brinde</option>
+                        <option value="book">Livro</option>
                       </select>
                     </div>
 
-                    {newReward.type === 'gift' && (
+                    {newReward.type === 'book' && (
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Gênero Literário</label>
+                        <input
+                          type="text"
+                          value={newReward.genre || ''}
+                          onChange={(e) => setNewReward({ ...newReward, genre: e.target.value })}
+                          className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-yellow-400 font-bold text-sm"
+                          placeholder="Ex: Fantasia, Romance, Suspense..."
+                        />
+                      </div>
+                    )}
+
+                    {(newReward.type === 'gift' || newReward.type === 'book') && (
                       <div className="col-span-2">
                         <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Quantidade em Estoque</label>
                         <input

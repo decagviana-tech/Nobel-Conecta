@@ -286,12 +286,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                         <td className="px-8 py-5">
                           <div className="flex items-center gap-4">
                             <img
-                              src={u.avatar_url || `https://ui-avatars.com/api/?name=${u.username}&background=EAB308&color=000&bold=true`}
+                              src={(u.avatar_url && !u.avatar_url.includes('dicebear')) ? u.avatar_url : `https://ui-avatars.com/api/?name=${u.username?.replace(/^@/, '')}&background=EAB308&color=000&bold=true`}
                               className="w-10 h-10 rounded-xl border-2 border-gray-100"
                               alt=""
                             />
                             <div>
-                              <p className="font-black text-gray-900">@{u.username}</p>
+                              <p className="font-black text-gray-900">@{u.username?.replace(/^@/, '')}</p>
                               <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Registrado em {new Date(u.created_at).toLocaleDateString()}</p>
                             </div>
                           </div>
