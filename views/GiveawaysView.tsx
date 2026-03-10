@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon, Edit2 } from 'lucide-react';
+import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon, Edit2, X } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { awardPoints } from '../src/services/pointsService';
 import { Profile, Giveaway } from '../types';
@@ -16,6 +16,10 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
   const [loading, setLoading] = useState(true);
   const [participating, setParticipating] = useState<string[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [selectedGiveawayParticipants, setSelectedGiveawayParticipants] = useState<Profile[]>([]);
+  const [selectedGiveawayId, setSelectedGiveawayId] = useState<string | null>(null);
+  const [pickingWinner, setPickingWinner] = useState(false);
   const [newGiveaway, setNewGiveaway] = useState<Partial<Giveaway>>({
     title: '',
     description: '',
@@ -65,17 +69,18 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     }
 
     try {
-      // Fetch giveaways and their participant counts
+      // Fetch giveaways and their participant counts, plus winner info
       const { data, error } = await supabase
         .from('giveaways')
-        .select('*, giveaway_participants(count)')
+        .select('*, giveaway_participants(count), winner:profiles(*)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       setGiveaways(data.map((g: any) => ({
         ...g,
-        participants_count: g.giveaway_participants?.[0]?.count || 0
+        participants_count: g.giveaway_participants?.[0]?.count || 0,
+        winner: g.winner // Adicionando o perfil do vencedor
       })));
     } catch (err: any) {
       console.error('Error fetching giveaways:', err);
@@ -96,6 +101,84 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
       .eq('user_id', profile.id);
 
     if (data) setParticipating(data.map(p => p.giveaway_id));
+  };
+
+  const fetchParticipants = async (giveawayId: string) => {
+    if (!isSupabaseConfigured) {
+      alert('Modo Demo: não há participantes reais para listar.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('giveaway_participants')
+        .select(`
+          user_id,
+          profile:profiles (
+            id,
+            username,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('giveaway_id', giveawayId);
+
+      if (error) throw error;
+
+      const participantProfiles = data.map((p: any) => p.profile).filter(Boolean);
+      setSelectedGiveawayParticipants(participantProfiles);
+      setSelectedGiveawayId(giveawayId);
+      setShowParticipantsModal(true);
+    } catch (err) {
+      console.error('Error fetching participants:', err);
+      alert('Erro ao carregar lista de participantes.');
+    }
+  };
+
+  const handlePickWinner = async () => {
+    if (!selectedGiveawayId || selectedGiveawayParticipants.length === 0) return;
+
+    setPickingWinner(true);
+    try {
+      // Pequena animação/delay para suspense
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const randomIndex = Math.floor(Math.random() * selectedGiveawayParticipants.length);
+      const winner = selectedGiveawayParticipants[randomIndex];
+
+      const { error } = await supabase
+        .from('giveaways')
+        .update({
+          winner_id: winner.id,
+          is_active: false // Opcional: desativa o sorteio após escolher o vencedor
+        })
+        .eq('id', selectedGiveawayId);
+
+      if (error) throw error;
+
+      alert(`🎉 Sorteio realizado! Parabéns a(o) vencedor(a): ${winner.full_name || winner.username}`);
+
+      // Notificar o vencedor
+      try {
+        await supabase.from('notifications').insert({
+          user_id: winner.id,
+          type: 'giveaway',
+          title: '🏆 VOCÊ GANHOU O SORTEIO!',
+          content: `Parabéns! Você foi o sorteado(a). Entre em contato com a Nobel Petrópolis para retirar seu prêmio.`,
+          link: '/giveaways'
+        });
+      } catch (notifErr) {
+        console.warn('Erro ao notificar vencedor:', notifErr);
+      }
+
+      fetchGiveaways();
+      setShowParticipantsModal(false);
+    } catch (err) {
+      console.error('Error picking winner:', err);
+      alert('Erro ao realizar sorteio.');
+    } finally {
+      setPickingWinner(false);
+    }
   };
 
   const handleParticipate = (giveawayId: string) => {
@@ -268,6 +351,13 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                     <span className="text-[10px] font-black uppercase tracking-[0.2em]">Sorteio Ativo</span>
                   </div>
                   <h3 className="text-white text-2xl font-black font-serif italic leading-tight">{giveaway.title}</h3>
+
+                  {giveaway.winner && (
+                    <div className="mt-4 bg-yellow-400 text-black px-4 py-2 rounded-xl flex items-center gap-2 self-start animate-bounce shadow-xl">
+                      <Trophy size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Ganhador(a): {giveaway.winner.full_name || giveaway.winner.username}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -284,9 +374,19 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                   </div>
                   <div className="bg-gray-50 p-4 rounded-2xl flex items-center gap-3">
                     <Users className="text-yellow-600" size={18} />
-                    <div>
-                      <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Participantes</p>
-                      <p className="text-xs font-black">{giveaway.participants_count || 0}</p>
+                    <div className="flex-1 flex justify-between items-center">
+                      <div>
+                        <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Participantes</p>
+                        <p className="text-xs font-black">{giveaway.participants_count || 0}</p>
+                      </div>
+                      {isAdmin && (giveaway.participants_count || 0) > 0 && (
+                        <button
+                          onClick={() => fetchParticipants(giveaway.id)}
+                          className="bg-black text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-black transition-colors"
+                        >
+                          Ver Lista
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -392,6 +492,69 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 bg-gray-100 text-gray-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px]">Cancelar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Participantes (Admin) */}
+      {showParticipantsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[20000] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-black font-serif italic">Inscritos no Sorteio</h3>
+              <button
+                onClick={() => setShowParticipantsModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 mb-6 pr-2">
+              {selectedGiveawayParticipants.map(participant => (
+                <div key={participant.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0">
+                    {participant.avatar_url ? (
+                      <img src={participant.avatar_url} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold uppercase text-xs">
+                        {participant.username.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-black text-sm truncate">{participant.full_name || 'Usuário Nobel'}</p>
+                    <p className="text-[10px] text-gray-400 font-bold">@{participant.username}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <button
+                onClick={handlePickWinner}
+                disabled={pickingWinner || selectedGiveawayParticipants.length === 0}
+                className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center justify-center gap-2 ${pickingWinner
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-black text-yellow-400 hover:scale-105 shadow-xl'
+                  }`}
+              >
+                {pickingWinner ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Sorteando...
+                  </>
+                ) : (
+                  <>
+                    <Trophy size={18} />
+                    Realizar Sorteio Agora
+                  </>
+                )}
+              </button>
+              <p className="text-[9px] text-gray-400 text-center mt-3 font-bold uppercase tracking-widest leading-relaxed">
+                Ao clicar, um sistema aleatório escolherá um dos {selectedGiveawayParticipants.length} participantes.
+              </p>
+            </div>
           </div>
         </div>
       )}
