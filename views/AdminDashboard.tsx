@@ -30,10 +30,11 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
   const isAdmin = useAdmin(profile);
-  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop' | 'moderation'>('stats');
+  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop' | 'moderation' | 'redemptions'>('stats');
   const [users, setUsers] = useState<Profile[]>([]);
   const [shops, setShops] = useState<any[]>([]); // To manage shop books directly
   const [posts, setPosts] = useState<Post[]>([]);
+  const [redemptions, setRedemptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
@@ -68,33 +69,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
     }
 
     try {
-      const [
-        { data: userData },
-        { data: shopData },
-        { data: postData },
-        { count: pendingCount },
-        { count: giveawayCount },
-        { count: interactionsCount },
-        { count: vipCount }
-      ] = await Promise.all([
+      const results = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('shop_books').select('*').order('title', { ascending: true }),
         supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }),
+        supabase.from('redemptions').select('*, user:profiles(*), reward:rewards(*)').order('created_at', { ascending: false }),
         supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('giveaways').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('likes').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('points', 500)
       ]);
 
-      setUsers(userData || []);
-      setShops(shopData || []);
-      setPosts(postData || []);
+      const [resUsr, resShp, resPst, resRedem, resPend, resGiv, resInt, resVip] = results;
+
+      const userData = resUsr.data || [];
+      const shopData = resShp.data || [];
+      const postData = resPst.data || [];
+      const redemptionData = resRedem.data || [];
+      const pendingCount = resPend.count || 0;
+      const giveawayCount = resGiv.count || 0;
+      const interactionsCount = resInt.count || 0;
+      const vipCount = resVip.count || 0;
+
+      setUsers(userData);
+      setShops(shopData);
+      setPosts(postData);
+      setRedemptions(redemptionData);
       setStats({
-        totalUsers: userData?.length || 0,
-        pendingRedemptions: pendingCount || 0,
-        activeGiveaways: giveawayCount || 0,
-        vipUsers: vipCount || 0,
-        totalInteractions: interactionsCount || 0
+        totalUsers: userData.length,
+        pendingRedemptions: pendingCount,
+        activeGiveaways: giveawayCount,
+        vipUsers: vipCount,
+        totalInteractions: interactionsCount
       });
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -150,6 +156,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
           fetchData();
         } catch (err) {
           alert('Erro ao alterar privilégios.');
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleApproveRedemption = async (redemptionId: string, userId: string, rewardTitle: string) => {
+    try {
+      const { error } = await supabase
+        .from('redemptions')
+        .update({ status: 'completed' })
+        .eq('id', redemptionId);
+
+      if (error) throw error;
+
+      // Notificar usuário
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type: 'system',
+        title: '🎁 Resgate Aprovado!',
+        content: `Seu resgate do prêmio "${rewardTitle}" foi confirmado na loja. Parabéns!`,
+        link: '/rewards'
+      });
+
+      fetchData();
+      alert('Resgate aprovado com sucesso!');
+    } catch (err) {
+      alert('Erro ao aprovar resgate.');
+    }
+  };
+
+  const handleCancelRedemption = async (redemption: any) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancelar Resgate?",
+      message: "Isso cancelará o pedido. Atenção: no momento o estorno de pontos deve ser feito manualmente se necessário.",
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('redemptions')
+            .update({ status: 'cancelled' })
+            .eq('id', redemption.id);
+
+          if (error) throw error;
+
+          fetchData();
+        } catch (err) {
+          alert('Erro ao cancelar resgate.');
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
@@ -247,6 +301,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
             }`}
         >
           <BookOpen size={14} className="md:w-4 md:h-4" /> Loja
+        </button>
+        <button
+          onClick={() => setActiveTab('redemptions')}
+          className={`px-3 py-3 md:flex-1 md:py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap ${activeTab === 'redemptions' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <Ticket size={14} className="md:w-4 md:h-4" /> Resgates
+          {stats.pendingRedemptions > 0 && (
+            <span className="bg-red-500 text-white w-4 h-4 rounded-full text-[8px] flex items-center justify-center animate-pulse">
+              {stats.pendingRedemptions}
+            </span>
+          )}
         </button>
       </div>
 
@@ -346,8 +412,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
               <p className="text-[10px] text-green-500 font-bold">Curtidas no total</p>
             </div>
 
-            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-2xl flex items-center justify-center mb-6">
+            <div
+              onClick={() => setActiveTab('redemptions')}
+              className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm cursor-pointer hover:border-yellow-400 transition-all group"
+            >
+              <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Ticket size={24} />
               </div>
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Resgates Pendentes</p>
