@@ -30,11 +30,12 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
   const isAdmin = useAdmin(profile);
-  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop' | 'moderation' | 'redemptions'>('stats');
+  const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'shop' | 'moderation' | 'redemptions' | 'giveaways'>('stats');
   const [users, setUsers] = useState<Profile[]>([]);
   const [shops, setShops] = useState<any[]>([]); // To manage shop books directly
   const [posts, setPosts] = useState<Post[]>([]);
   const [redemptions, setRedemptions] = useState<any[]>([]);
+  const [giveaways, setGiveaways] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
@@ -73,21 +74,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('shop_books').select('*').order('title', { ascending: true }),
         supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }),
-        supabase.from('redemptions').select('*, user:profiles(*), reward:rewards(*)').order('created_at', { ascending: false }),
+        supabase.from('redemptions').select('*, user:profiles!user_id(*), reward:rewards!reward_id(*)').order('created_at', { ascending: false }),
+        supabase.from('giveaways').select('*, participants:giveaway_participants(profiles(username))').order('created_at', { ascending: false }),
         supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('giveaways').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('likes').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('points', 500)
       ]);
 
-      const [resUsr, resShp, resPst, resRedem, resPend, resGiv, resInt, resVip] = results;
+      const [resUsr, resShp, resPst, resRedem, resGivList, resPend, resGivCount, resInt, resVip] = results;
 
       const userData = resUsr.data || [];
       const shopData = resShp.data || [];
       const postData = resPst.data || [];
       const redemptionData = resRedem.data || [];
+      const giveawayListData = resGivList.data || [];
       const pendingCount = resPend.count || 0;
-      const giveawayCount = resGiv.count || 0;
+      const giveawayCount = resGivCount.count || 0;
       const interactionsCount = resInt.count || 0;
       const vipCount = resVip.count || 0;
 
@@ -95,6 +98,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
       setShops(shopData);
       setPosts(postData);
       setRedemptions(redemptionData);
+      setGiveaways(giveawayListData);
       setStats({
         totalUsers: userData.length,
         pendingRedemptions: pendingCount,
@@ -210,6 +214,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
     });
   };
 
+  const handleRunRaffle = async (giveawayId: string) => {
+    try {
+      const { data: participants, error: pError } = await supabase
+        .from('giveaway_participants')
+        .select('user_id')
+        .eq('giveaway_id', giveawayId);
+
+      if (pError) throw pError;
+      if (!participants || participants.length === 0) {
+        alert('Não há participantes para este sorteio.');
+        return;
+      }
+
+      const winnerIndex = Math.floor(Math.random() * participants.length);
+      const winnerId = participants[winnerIndex].user_id;
+
+      const { error: uError } = await supabase
+        .from('giveaways')
+        .update({
+          winner_id: winnerId,
+          is_active: false
+        })
+        .eq('id', giveawayId);
+
+      if (uError) throw uError;
+
+      fetchData();
+      alert('Sorteio realizado com sucesso! O vencedor foi selecionado.');
+    } catch (err) {
+      alert('Erro ao realizar sorteio.');
+    }
+  };
+
   if (loading && isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -313,6 +350,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
               {stats.pendingRedemptions}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab('giveaways')}
+          className={`px-3 py-3 md:flex-1 md:py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap ${activeTab === 'giveaways' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-gray-600'
+            }`}
+        >
+          <Ticket size={14} className="md:w-4 md:h-4" /> Sorteios
         </button>
       </div>
 
@@ -518,6 +562,115 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
           </div>
         )}
 
+        {activeTab === 'redemptions' && (
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-8 border-b border-gray-50 flex items-center justify-between">
+              <h3 className="text-xl font-black font-serif italic tracking-tight">Resgates de Recompensas</h3>
+              <div className="relative">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Buscar resgate..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-gray-50 border-none rounded-2xl pl-12 pr-6 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-yellow-400 transition-all w-64"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Usuário</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Recompensa</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Código</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Data</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Status</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {redemptions
+                    .filter(r => {
+                      if (!searchQuery) return true;
+                      const search = searchQuery.toLowerCase();
+                      const u = Array.isArray(r.user) ? r.user[0] : r.user;
+                      const rw = Array.isArray(r.reward) ? r.reward[0] : r.reward;
+
+                      const userMatch = u?.username?.toLowerCase().includes(search);
+                      const rewardMatch = rw?.title?.toLowerCase().includes(search);
+                      const codeMatch = r.redemption_code?.toLowerCase().includes(search);
+                      return userMatch || rewardMatch || codeMatch;
+                    })
+                    .map(r => {
+                      const u = Array.isArray(r.user) ? r.user[0] : r.user;
+                      const rw = Array.isArray(r.reward) ? r.reward[0] : r.reward;
+
+                      return (
+                        <tr key={r.id} className="hover:bg-gray-50/50 transition-colors group">
+                          <td className="px-8 py-5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-100">
+                                {u?.avatar_url ? (
+                                  <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <UserIcon size={14} className="text-gray-300" />
+                                )}
+                              </div>
+                              <span className="font-black text-gray-900 text-sm">@{u?.username?.replace(/^@/, '') || 'usuário'}</span>
+                            </div>
+                          </td>
+                          <td className="px-8 py-5">
+                            <p className="font-bold text-gray-900 text-sm">{rw?.title || 'Prêmio'}</p>
+                            <p className="text-[9px] text-yellow-600 font-black uppercase">{rw?.points_required || 0} Pontos</p>
+                          </td>
+                          <td className="px-8 py-5">
+                            <code className="bg-gray-100 px-2 py-1 rounded text-[10px] font-mono font-bold text-gray-600">
+                              {r.redemption_code || '---'}
+                            </code>
+                          </td>
+                          <td className="px-8 py-5 text-xs text-gray-400">
+                            {new Date(r.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-8 py-5">
+                            <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${r.status === 'pending' ? 'bg-yellow-50 text-yellow-600 border border-yellow-100' :
+                              r.status === 'completed' ? 'bg-green-50 text-green-600 border border-green-100' :
+                                'bg-red-50 text-red-600 border border-red-100'
+                              }`}>
+                              {r.status === 'pending' ? 'Pendente' :
+                                r.status === 'completed' ? 'Entregue' : 'Cancelado'}
+                            </span>
+                          </td>
+                          <td className="px-8 py-5">
+                            {r.status === 'pending' && (
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleApproveRedemption(r.id, r.user_id, rw?.title || 'Prêmio')}
+                                  className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-500 hover:text-white transition-all shadow-sm"
+                                  title="Aprovar e Dar Baixa"
+                                >
+                                  <CheckCircle2 size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleCancelRedemption(r)}
+                                  className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                                  title="Cancelar Resgate"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'shop' && (
           <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8">
             <div className="flex items-center justify-between mb-8">
@@ -549,6 +702,70 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
             </div>
           </div>
         )}
+
+        {activeTab === 'giveaways' && (
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden p-8">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-black font-serif italic tracking-tight">Gestão de Sorteios</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {giveaways.map(g => (
+                <div key={g.id} className="bg-gray-50 rounded-3xl p-6 border border-transparent hover:border-yellow-200 transition-all">
+                  <div className="flex gap-4 mb-4">
+                    <img src={g.book_image_url} className="w-16 h-24 object-cover rounded-xl shadow-sm" alt="" />
+                    <div className="flex-1">
+                      <h4 className="font-black text-gray-900 leading-tight">{g.title}</h4>
+                      <p className="text-[10px] text-gray-400 font-bold mb-2 uppercase">Termina em: {new Date(g.end_date).toLocaleDateString()}</p>
+                      <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${g.is_active ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                        {g.is_active ? 'Ativo' : 'Encerrado'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-4 border border-gray-100 mb-6">
+                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Participantes ({g.participants?.length || 0})</p>
+                    <div className="flex flex-wrap gap-1">
+                      {g.participants?.map((p: any, idx: number) => {
+                        const username = p.profiles?.username || 'usuário';
+                        return (
+                          <span key={idx} className="text-[9px] font-bold bg-gray-50 px-2 py-0.5 rounded-full text-gray-600">
+                            @{username.replace(/^@/, '')}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {g.is_active ? (
+                    <button
+                      onClick={() => handleRunRaffle(g.id)}
+                      className="w-full bg-black text-yellow-400 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                    >
+                      <Ticket size={16} /> Realizar Sorteio Agora
+                    </button>
+                  ) : (
+                    <div className="bg-yellow-50 p-4 rounded-2xl border border-yellow-100 flex items-center gap-3">
+                      <Crown className="text-yellow-600" size={20} />
+                      <div>
+                        <p className="text-[8px] font-black uppercase text-yellow-600">Vencedor:</p>
+                        <p className="font-black text-gray-900">
+                          {g.winner_id ? (users.find(u => u.id === g.winner_id)?.username || 'Vencedor Sorteado') : '---'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {giveaways.length === 0 && (
+                <div className="col-span-2 py-20 text-center">
+                  <Ticket className="mx-auto text-gray-200 mb-4" size={48} />
+                  <p className="text-gray-400 italic">Nenhum sorteio cadastrado no momento.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <ConfirmModal
@@ -558,7 +775,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
-    </div>
+    </div >
   );
 };
 
