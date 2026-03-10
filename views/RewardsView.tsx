@@ -409,37 +409,46 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             alert('Resgate realizado com sucesso! Verifique em "Meus Resgates".');
             window.location.reload(); // To refresh profile points in navbar
           } else {
-            // Update points in DB
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .update({ points: newPoints })
-              .eq('id', profile.id);
+            // Usar RPC para resgate atômico (evita erros de estoque/pontos)
+            const { error: rpcError } = await supabase.rpc('redeem_reward', {
+              p_reward_id: reward.id,
+              p_user_id: profile.id,
+              p_points_req: reward.points_required,
+              p_redemption_code: redemptionCode
+            });
 
-            if (profileError) throw profileError;
+            if (rpcError) throw rpcError;
 
-            // Create redemption record
-            const { error: redemptionError } = await supabase
-              .from('redemptions')
-              .insert([redemptionData]);
+            // Integração WhatsApp se for item físico (brinde ou livro)
+            if (reward.type === 'gift' || reward.type === 'book') {
+              const whatsappNumber = '552422358014'; // Nobel Petrópolis
+              const message = encodeURIComponent(
+                `Olá! Gostaria de reservar meu prêmio "${reward.title}" que acabei de resgatar no Nobel Conecta.\n\n` +
+                `👤 Usuário: @${profile.username}\n` +
+                `📱 Email: ${profile.email || 'N/A'}\n` +
+                `📖 Item: ${reward.title}\n\n` +
+                `Estou enviando esta mensagem para garantir minha reserva na loja.`
+              );
 
-            if (redemptionError) throw redemptionError;
+              const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
 
-            // Update stock if it's a gift or book
-            if ((reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined) {
-              await supabase
-                .from('rewards')
-                .update({ stock: reward.stock - 1 })
-                .eq('id', reward.id);
+              alert('Resgate realizado! Redirecionando para o WhatsApp da loja para sua reserva...');
+              window.open(whatsappUrl, '_blank');
+            } else {
+              alert('Resgate realizado com sucesso! Seu código de desconto está disponível em "Meus Resgates".');
             }
 
-            alert('Resgate realizado com sucesso!');
             fetchRedemptions();
             fetchRewards();
-            window.location.reload();
+            // Disparar evento customizado para o App.tsx atualizar o perfil (evita reload total)
+            const event = new CustomEvent('nobel_profile_updated', {
+              detail: { points: newPoints }
+            });
+            window.dispatchEvent(event);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('Erro ao realizar resgate:', err);
-          alert('Erro ao realizar resgate.');
+          alert(`Erro ao realizar resgate: ${err.message || 'Erro desconhecido'}`);
         }
       }
     });
@@ -634,8 +643,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                       </div>
                     </div>
 
-                    <h3 className="text-lg font-black tracking-tight text-gray-900 mb-1 font-serif italic truncate">{reward.title}</h3>
-                    <p className="text-gray-500 text-xs mb-4 line-clamp-2 italic">"{reward.description}"</p>
+                    <h3 className="text-lg font-black tracking-tight text-gray-900 mb-1 font-serif italic">{reward.title}</h3>
+                    <p className="text-gray-500 text-xs mb-4 italic leading-relaxed">"{reward.description}"</p>
 
                     {(reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined && (
                       <div className="mb-4 flex items-center gap-2">
