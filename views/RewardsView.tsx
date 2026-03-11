@@ -250,29 +250,29 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         }
       } else {
         if (editingReward) {
-          console.log('Tentando atualizar prêmio:', editingReward.id, rewardData);
-          const { error } = await supabase
+          console.log('--- DIAGNÓSTICO DE EDIÇÃO ---');
+          console.log('ID:', editingReward.id);
+          console.log('Payload:', rewardData);
+          
+          const { error, status } = await supabase
             .from('rewards')
             .update(rewardData)
             .eq('id', editingReward.id);
 
           if (error) {
-            console.error('Erro no update:', error);
+            console.error('Erro detalhado do Supabase:', error);
+            alert(`ERRO NO BANCO (${error.code}): ${error.message}\nDetalhe: ${error.details || 'Sem detalhes'}\nDica: ${error.hint || 'Sem dica'}`);
             throw error;
           }
           
+          console.log('Status da resposta Supabase:', status);
           alert('Recompensa editada com sucesso!');
         } else {
-          console.log('Tentando criar novo prêmio:', rewardData);
           const { error } = await supabase
             .from('rewards')
             .insert([{ ...rewardData, created_at: new Date().toISOString() }]);
 
-          if (error) {
-            console.error('Erro no insert:', error);
-            throw error;
-          }
-
+          if (error) throw error;
           alert('Recompensa criada com sucesso!');
         }
         
