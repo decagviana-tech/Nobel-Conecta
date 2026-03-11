@@ -253,28 +253,26 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             .from('rewards')
             .update(rewardData)
             .eq('id', editingReward.id)
-            .select()
-            .single();
+            .select();
 
           if (error) throw error;
           
           // Update otimista imediato
-          if (data) {
-            setRewards(prev => prev.map(r => r.id === data.id ? data : r));
+          if (data && data.length > 0) {
+            setRewards(prev => prev.map(r => r.id === data[0].id ? data[0] : r));
           }
           alert('Recompensa editada com sucesso!');
         } else {
           const { data, error } = await supabase
             .from('rewards')
             .insert([{ ...rewardData, created_at: new Date().toISOString() }])
-            .select()
-            .single();
+            .select();
 
           if (error) throw error;
 
           // Update otimista imediato
-          if (data) {
-            setRewards(prev => [...prev, data].sort((a,b) => a.points_required - b.points_required));
+          if (data && data.length > 0) {
+            setRewards(prev => [...prev, data[0]].sort((a,b) => a.points_required - b.points_required));
           }
           alert('Recompensa criada com sucesso!');
         }
