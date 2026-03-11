@@ -16,6 +16,7 @@ import MessagesView from './views/MessagesView';
 import GiveawaysView from './views/GiveawaysView';
 import RewardsView from './views/RewardsView';
 import AdminDashboard from './views/AdminDashboard';
+import ResetPassword from './views/ResetPassword';
 import Navbar from './components/Navbar';
 import LoadingOverlay from './components/LoadingOverlay';
 import { motion, AnimatePresence } from 'motion/react';
@@ -186,9 +187,10 @@ const App: React.FC = () => {
               >
                 <Routes>
                   <Route path="/" element={session ? <Home profile={profile} /> : <Navigate to="/login" />} />
-                  <Route path="/login" element={!session ? <Login setSession={setSession} setProfile={setProfile} /> : <Navigate to="/" />} />
-                  <Route path="/register" element={!session ? <Register /> : <Navigate to="/" />} />
-                  <Route path="/profile/:id" element={session ? <ProfileView currentUserId={session?.user?.id} currentProfile={profile} /> : <Navigate to="/login" />} />
+                   <Route path="/login" element={!session ? <Login setSession={setSession} setProfile={setProfile} /> : <Navigate to="/" />} />
+                   <Route path="/register" element={!session ? <Register /> : <Navigate to="/" />} />
+                   <Route path="/reset-password" element={<ResetPassword />} />
+                   <Route path="/profile/:id" element={session ? <ProfileView currentUserId={session?.user?.id} currentProfile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/shop" element={session ? <Shop profile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/events" element={session ? <Events profile={profile} /> : <Navigate to="/login" />} />
                   <Route path="/creative" element={session ? <CreativeSpace profile={profile} /> : <Navigate to="/login" />} />

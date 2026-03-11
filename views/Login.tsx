@@ -15,6 +15,9 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoverySent, setRecoverySent] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +81,34 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
       }
     } catch (err: any) {
       setError('Erro de conexão. Verifique sua internet ou tente novamente em instantes.');
+      setLoading(false);
+    }
+  };
+
+  const handleRecoverPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    if (!isSupabaseConfigured) {
+      setTimeout(() => {
+        setRecoverySent(true);
+        setLoading(false);
+      }, 1000);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+        redirectTo: window.location.origin + window.location.pathname + '#/reset-password',
+      });
+
+      if (error) throw error;
+
+      setRecoverySent(true);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao enviar e-mail de recuperação.');
+    } finally {
       setLoading(false);
     }
   };
@@ -189,8 +220,14 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
             </div>
 
             <div className="mb-8 md:mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">Entrar</h2>
-              <p className="text-gray-400 mt-2 font-medium">Bom te ver de novo! Acesse sua conta.</p>
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">
+                {isRecovering ? 'Recuperar Senha' : 'Entrar'}
+              </h2>
+              <p className="text-gray-400 mt-2 font-medium">
+                {isRecovering 
+                  ? 'Enviaremos um link de acesso para o seu e-mail.' 
+                  : 'Bom te ver de novo! Acesse sua conta.'}
+              </p>
             </div>
 
             {error && (
@@ -199,45 +236,107 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
               </div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">E-mail</label>
-                <input
-                  required
-                  type="email"
-                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+            {recoverySent ? (
+              <div className="text-center py-8">
+                <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 size={40} />
+                </div>
+                <h3 className="text-xl font-black text-gray-900 mb-2">E-mail enviado!</h3>
+                <p className="text-gray-500 mb-8 font-medium">Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.</p>
+                <button
+                  onClick={() => {
+                    setIsRecovering(false);
+                    setRecoverySent(false);
+                  }}
+                  className="text-black font-black hover:underline underline-offset-8 decoration-yellow-400 decoration-4"
+                >
+                  Voltar para o login
+                </button>
               </div>
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Senha</label>
-                <input
-                  required
-                  type="password"
-                  className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+            ) : isRecovering ? (
+              <form onSubmit={handleRecoverPassword} className="space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">E-mail da Conta</label>
+                  <input
+                    required
+                    type="email"
+                    className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
+                    placeholder="seu@email.com"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-black hover:bg-gray-800 text-yellow-400 font-black py-5 md:py-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-3 mt-4 transform active:scale-95 uppercase tracking-widest text-sm"
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : 'Enviar Link de Recuperação'}
+                </button>
+
+                <div className="text-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsRecovering(false)}
+                    className="text-gray-400 font-bold hover:text-black transition-colors"
+                  >
+                    Cancelar e voltar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">E-mail</label>
+                  <input
+                    required
+                    type="email"
+                    className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1.5 ml-1 mr-1">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Senha</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsRecovering(true)}
+                      className="text-[10px] font-black text-yellow-600 hover:text-black uppercase tracking-widest transition-colors"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  </div>
+                  <input
+                    required
+                    type="password"
+                    className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-black hover:bg-gray-800 text-yellow-400 font-black py-5 md:py-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-3 mt-4 transform active:scale-95 uppercase tracking-widest text-sm"
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : 'Entrar na Comunidade'}
+                </button>
+              </form>
+            )}
+
+            {!isRecovering && !recoverySent && (
+              <div className="mt-10 pt-8 border-t border-gray-100 text-center text-sm md:text-base">
+                <span className="text-gray-400">Ainda não faz parte? </span>
+                <Link to="/register" className="text-black font-black hover:underline underline-offset-8 decoration-yellow-400 decoration-4 ml-1">
+                  Criar conta gratuita
+                </Link>
               </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-black hover:bg-gray-800 text-yellow-400 font-black py-5 md:py-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-3 mt-4 transform active:scale-95 uppercase tracking-widest text-sm"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : 'Entrar na Comunidade'}
-              </button>
-            </form>
-
-            <div className="mt-10 pt-8 border-t border-gray-100 text-center text-sm md:text-base">
-              <span className="text-gray-400">Ainda não faz parte? </span>
-              <Link to="/register" className="text-black font-black hover:underline underline-offset-8 decoration-yellow-400 decoration-4 ml-1">
-                Criar conta gratuita
-              </Link>
-            </div>
+            )}
           </div>
         </div>
 
