@@ -69,6 +69,31 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     if (profile) {
       fetchRedemptions();
     }
+
+    // Configurar Realtime para Rewards
+    if (isSupabaseConfigured) {
+      const channel = supabase
+        .channel('public:rewards')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'rewards' 
+        }, payload => {
+          console.log('Mudança em tempo real detectada:', payload);
+          if (payload.eventType === 'INSERT') {
+            setRewards(prev => [...prev, payload.new as Reward].sort((a,b) => a.points_required - b.points_required));
+          } else if (payload.eventType === 'UPDATE') {
+            setRewards(prev => prev.map(r => r.id === payload.new.id ? payload.new as Reward : r));
+          } else if (payload.eventType === 'DELETE') {
+            setRewards(prev => prev.filter(r => r.id !== payload.old.id));
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [profile]);
 
   const fetchRewards = async () => {
@@ -191,32 +216,17 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     }
 
     try {
-      const { is_active, stock, ...rewardFields } = newReward;
-
+      setLoading(true);
       const rewardData: any = {
-        ...rewardFields,
+        title: newReward.title,
+        description: newReward.description,
+        points_required: newReward.points_required,
+        type: newReward.type,
         image_url: newImageUrl || newReward.image_url,
+        stock: (newReward.type === 'gift' || newReward.type === 'book') ? (newReward.stock || 0) : null,
+        genre: newReward.type === 'book' ? newReward.genre : null,
+        is_active: newReward.is_active !== undefined ? newReward.is_active : true
       };
-
-      if (!editingReward) {
-        rewardData.created_at = new Date().toISOString();
-      }
-
-      if (newReward.type === 'gift' || newReward.type === 'book') {
-        if (newReward.stock !== undefined) {
-          rewardData.stock = newReward.stock;
-        } else {
-          rewardData.stock = 0;
-        }
-      }
-
-      if (newReward.type === 'book') {
-        if (!newReward.genre?.trim()) {
-          alert('Por favor, preencha o Gênero do livro.');
-          return;
-        }
-        rewardData.genre = newReward.genre;
-      }
 
       if (!isSupabaseConfigured) {
         if (editingReward) {
@@ -228,11 +238,10 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
           const newRewardObj = {
             ...rewardData,
             id: `demo-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            is_active: true,
-            stock: newReward.stock || 0
+            created_at: new Date().toISOString()
           } as Reward;
           setRewards(prev => {
-            const updated = [...prev, newRewardObj];
+            const updated = [...prev, newRewardObj].sort((a,b) => a.points_required - b.points_required);
             localStorage.setItem('nobel_conecta_demo_rewards', JSON.stringify(updated));
             return updated;
           });
@@ -240,14 +249,33 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         }
       } else {
         if (editingReward) {
-          const { error } = await supabase.from('rewards').update(rewardData).eq('id', editingReward.id);
+          const { data, error } = await supabase
+            .from('rewards')
+            .update(rewardData)
+            .eq('id', editingReward.id)
+            .select()
+            .single();
+
           if (error) throw error;
-          fetchRewards();
+          
+          // Update otimista imediato
+          if (data) {
+            setRewards(prev => prev.map(r => r.id === data.id ? data : r));
+          }
           alert('Recompensa editada com sucesso!');
         } else {
-          const { error } = await supabase.from('rewards').insert([rewardData]);
+          const { data, error } = await supabase
+            .from('rewards')
+            .insert([{ ...rewardData, created_at: new Date().toISOString() }])
+            .select()
+            .single();
+
           if (error) throw error;
-          fetchRewards();
+
+          // Update otimista imediato
+          if (data) {
+            setRewards(prev => [...prev, data].sort((a,b) => a.points_required - b.points_required));
+          }
           alert('Recompensa criada com sucesso!');
         }
       }
@@ -266,6 +294,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     } catch (err: any) {
       console.error('Erro ao salvar recompensa:', err);
       alert(`Erro ao salvar recompensa: ${err.message || 'Erro desconhecido'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
