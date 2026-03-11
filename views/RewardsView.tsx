@@ -249,31 +249,47 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         }
       } else {
         if (editingReward) {
+          console.log('Tentando atualizar prêmio:', editingReward.id, rewardData);
           const { data, error } = await supabase
             .from('rewards')
             .update(rewardData)
             .eq('id', editingReward.id)
             .select();
 
-          if (error) throw error;
-          
-          // Update otimista imediato
-          if (data && data.length > 0) {
-            setRewards(prev => prev.map(r => r.id === data[0].id ? data[0] : r));
+          if (error) {
+            console.error('Erro de rede/banco no update:', error);
+            throw error;
           }
+          
+          if (!data || data.length === 0) {
+            console.error('RLS BLOCK: O servidor não retornou dados. Isso geralmente significa que você não tem permissão de Admin no banco de dados.');
+            alert('Erro de Permissão: Suas alterações não foram salvas. Verifique se sua conta tem nível de Admin no Supabase.');
+            return;
+          }
+
+          // Update otimista imediato
+          setRewards(prev => prev.map(r => r.id === data[0].id ? data[0] : r));
           alert('Recompensa editada com sucesso!');
         } else {
+          console.log('Tentando criar novo prêmio:', rewardData);
           const { data, error } = await supabase
             .from('rewards')
             .insert([{ ...rewardData, created_at: new Date().toISOString() }])
             .select();
 
-          if (error) throw error;
+          if (error) {
+            console.error('Erro de rede/banco no insert:', error);
+            throw error;
+          }
+
+          if (!data || data.length === 0) {
+            console.error('RLS BLOCK: O servidor não retornou dados após o insert.');
+            alert('Erro ao criar: O servidor rejeitou a criação. Verifique suas permissões de Admin.');
+            return;
+          }
 
           // Update otimista imediato
-          if (data && data.length > 0) {
-            setRewards(prev => [...prev, data[0]].sort((a,b) => a.points_required - b.points_required));
-          }
+          setRewards(prev => [...prev, data[0]].sort((a,b) => a.points_required - b.points_required));
           alert('Recompensa criada com sucesso!');
         }
       }
