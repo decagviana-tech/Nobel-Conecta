@@ -17,7 +17,8 @@ import {
   X,
   ChevronRight,
   Coins,
-  Edit2
+  Edit2,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -250,48 +251,33 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       } else {
         if (editingReward) {
           console.log('Tentando atualizar prêmio:', editingReward.id, rewardData);
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('rewards')
             .update(rewardData)
-            .eq('id', editingReward.id)
-            .select();
+            .eq('id', editingReward.id);
 
           if (error) {
-            console.error('Erro de rede/banco no update:', error);
+            console.error('Erro no update:', error);
             throw error;
           }
           
-          if (!data || data.length === 0) {
-            console.error('RLS BLOCK: O servidor não retornou dados. Isso geralmente significa que você não tem permissão de Admin no banco de dados.');
-            alert('Erro de Permissão: Suas alterações não foram salvas. Verifique se sua conta tem nível de Admin no Supabase.');
-            return;
-          }
-
-          // Update otimista imediato
-          setRewards(prev => prev.map(r => r.id === data[0].id ? data[0] : r));
           alert('Recompensa editada com sucesso!');
         } else {
           console.log('Tentando criar novo prêmio:', rewardData);
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('rewards')
-            .insert([{ ...rewardData, created_at: new Date().toISOString() }])
-            .select();
+            .insert([{ ...rewardData, created_at: new Date().toISOString() }]);
 
           if (error) {
-            console.error('Erro de rede/banco no insert:', error);
+            console.error('Erro no insert:', error);
             throw error;
           }
 
-          if (!data || data.length === 0) {
-            console.error('RLS BLOCK: O servidor não retornou dados após o insert.');
-            alert('Erro ao criar: O servidor rejeitou a criação. Verifique suas permissões de Admin.');
-            return;
-          }
-
-          // Update otimista imediato
-          setRewards(prev => [...prev, data[0]].sort((a,b) => a.points_required - b.points_required));
           alert('Recompensa criada com sucesso!');
         }
+        
+        // Recarregar tudo para garantir integridade
+        await fetchRewards();
       }
 
       setShowCreateModal(false);
@@ -502,6 +488,13 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     <div className="max-w-2xl mx-auto px-4 py-8 md:pt-12 pb-24">
       {/* Header com Pontos */}
       <div className="bg-black rounded-[2.5rem] p-8 mb-8 text-white relative overflow-hidden shadow-2xl">
+        {isAdmin && (
+          <div className="absolute top-6 right-6 z-20">
+            <span className="bg-yellow-400 text-black px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg">
+              <Shield size={10} /> Admin Mode
+            </span>
+          </div>
+        )}
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-yellow-400 p-2 rounded-xl">
