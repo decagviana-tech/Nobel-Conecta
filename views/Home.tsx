@@ -29,9 +29,29 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
     loadFollowing();
   }, [profile?.id]);
 
-  const loadFollowing = () => {
-    const saved = localStorage.getItem(FOLLOW_KEY);
-    if (saved) setFollowingIds(JSON.parse(saved));
+  const loadFollowing = async () => {
+    if (!profile?.id) return;
+
+    if (!isSupabaseConfigured) {
+      const saved = localStorage.getItem(FOLLOW_KEY);
+      if (saved) {
+        const ids = JSON.parse(saved);
+        setFollowingIds([...ids, profile.id]);
+      } else {
+        setFollowingIds([profile.id]);
+      }
+      return;
+    }
+
+    try {
+      const { getFollowingIds } = await import('../src/services/socialService');
+      const ids = await getFollowingIds(profile.id);
+      // Incluímos o próprio ID para que o usuário veja suas próprias postagens na aba Seguindo
+      setFollowingIds([...ids, profile.id]);
+    } catch (err) {
+      console.error('Error loading following:', err);
+      setFollowingIds([profile.id]);
+    }
   };
 
   const fetchPosts = async () => {
@@ -187,7 +207,10 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
           <Compass size={16} /> Explorar
         </button>
         <button
-          onClick={() => setActiveTab('seguindo')}
+          onClick={() => {
+            setActiveTab('seguindo');
+            loadFollowing();
+          }}
           className={`flex-1 flex items-center justify-center gap-2 py-4 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'seguindo' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
         >
           <Users size={16} /> Seguindo
