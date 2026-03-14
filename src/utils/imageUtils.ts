@@ -5,6 +5,11 @@ import imageCompression from 'browser-image-compression';
  * Isso economiza Storage e Bandwidth.
  */
 export async function compressImage(file: File, maxSizeMB: number = 0.5, maxWidthOrHeight: number = 1920): Promise<File> {
+    // Se o arquivo for muito pequeno (menos que o alvo), não precisa comprimir
+    if (file.size < maxSizeMB * 1024 * 1024) {
+        return file;
+    }
+
     const options = {
         maxSizeMB: maxSizeMB,
         maxWidthOrHeight: maxWidthOrHeight,
@@ -12,12 +17,17 @@ export async function compressImage(file: File, maxSizeMB: number = 0.5, maxWidt
     };
 
     try {
-        const compressedFile = await imageCompression(file, options);
+        console.log(`Comprimindo imagem: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+        const compressedBlob = await imageCompression(file, options);
+        
         // Ensure the returned object is a File with a name, some devices return a Blob without a name
-        return new File([compressedFile], file.name || 'image.jpg', {
-            type: compressedFile.type || 'image/jpeg',
+        const compressedFile = new File([compressedBlob], file.name || 'image.jpg', {
+            type: compressedBlob.type || 'image/jpeg',
             lastModified: Date.now()
         });
+        
+        console.log(`Imagem comprimida com sucesso: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+        return compressedFile;
     } catch (error) {
         console.warn('Erro ao comprimir imagem, retornando original:', error);
         return file;

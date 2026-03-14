@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, MessageCircle, Plus, Trash2, X, Tag, Camera, Loader2, BookOpen, Edit2 } from 'lucide-react';
 import { Book, Profile } from '../types';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
+import { compressImage } from '../src/utils/imageUtils';
 
 const INITIAL_BOOKS: Book[] = [
   { id: '1', title: 'Torto Arado', author: 'Itamar Vieira Junior', price: 'R$ 64,90', cover_url: 'https://m.media-amazon.com/images/I/81S89vV7YmL.jpg', description: 'Um fenômeno literário.' },
@@ -80,7 +81,8 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
     if (e.target.files?.[0]) {
       setUploading(true);
       try {
-        const url = await uploadFile('posts', e.target.files[0]);
+        const compressedFile = await compressImage(e.target.files[0], 0.6, 1200);
+        const url = await uploadFile('posts', compressedFile);
         setNewBook({ ...newBook, cover_url: url });
       } catch (err) {
         alert('Erro ao processar imagem.');

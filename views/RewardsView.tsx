@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { compressImage } from '../src/utils/imageUtils';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface RewardsViewProps {
@@ -195,7 +196,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
 
     setUploading(true);
     try {
-      const url = await uploadFile('rewards', file);
+      const compressedFile = await compressImage(file, 0.6, 1200);
+      const url = await uploadFile('rewards', compressedFile);
       setNewImageUrl(url);
     } catch (err) {
       console.error('Erro ao fazer upload:', err);

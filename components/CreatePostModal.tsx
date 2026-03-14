@@ -30,8 +30,9 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selected = Array.from(e.target.files);
-      const valid = selected.filter((file: File) => file.size <= 5 * 1024 * 1024);
-      setImages(prev => [...prev, ...valid].slice(0, 3));
+      // Removido o filtro rígido de 5MB para permitir que fotos de celulares modernos 
+      // entrem no fluxo e sejam comprimidas no handleSubmit.
+      setImages(prev => [...prev, ...selected].slice(0, 3));
     }
   };
 
