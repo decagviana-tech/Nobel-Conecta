@@ -215,7 +215,22 @@ CREATE POLICY "Users can insert their own creative comments" ON public.creative_
 CREATE POLICY "Users can update their own creative comments" ON public.creative_comments FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own creative comments" ON public.creative_comments FOR DELETE USING (auth.uid() = user_id);
 
--- 11. Rewards table
+-- 11. Follows table
+CREATE TABLE public.follows (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  follower_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  following_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(follower_id, following_id)
+);
+
+ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Follows are viewable by everyone" ON public.follows FOR SELECT USING (true);
+CREATE POLICY "Users can follow others" ON public.follows FOR INSERT WITH CHECK (auth.uid() = follower_id);
+CREATE POLICY "Users can unfollow" ON public.follows FOR DELETE USING (auth.uid() = follower_id);
+
+-- 12. Rewards table
 CREATE TABLE public.rewards (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
