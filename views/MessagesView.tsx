@@ -5,6 +5,7 @@ import { Profile, Message } from '../types';
 import { Send, ArrowLeft, User, Loader2, MessageSquare, Search, Edit2, Check, X } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { createNotification } from '../src/services/notificationService';
+import { isValidAvatar } from '../src/utils/imageUtils';
 
 interface MessagesViewProps {
   profile: Profile | null;
@@ -258,7 +259,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
                     className="w-full flex items-center gap-3 p-3 hover:bg-yellow-50 rounded-2xl transition-all text-left"
                   >
                     <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden shrink-0">
-                      {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-gray-300" />}
+                      {(user.avatar_url && isValidAvatar(user.avatar_url)) ? <img src={user.avatar_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-gray-300" />}
                     </div>
                     <div>
                       <p className="font-black text-xs text-gray-900">@{user.username}</p>
@@ -287,7 +288,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
                 className={`flex items-center gap-4 p-4 border-b border-gray-50 hover:bg-yellow-50/30 transition-all ${contactId === conv.profile.id ? 'bg-yellow-50 border-l-4 border-l-yellow-400' : ''}`}
               >
                 <div className="w-12 h-12 rounded-2xl bg-gray-100 overflow-hidden shrink-0 border border-gray-100">
-                  {conv.profile.avatar_url ? <img src={conv.profile.avatar_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-3 text-gray-300" />}
+                  {(conv.profile.avatar_url && isValidAvatar(conv.profile.avatar_url)) ? <img src={conv.profile.avatar_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-3 text-gray-300" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-1">
@@ -317,7 +318,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
             <div className="p-4 border-b border-gray-100 flex items-center gap-4 bg-white sticky top-0 z-10">
               <button onClick={() => navigate('/messages')} className="md:hidden p-2 hover:bg-gray-50 rounded-xl"><ArrowLeft size={20} /></button>
               <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden border border-gray-100">
-                {contactProfile.avatar_url ? <img src={contactProfile.avatar_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-gray-300" />}
+                {(contactProfile.avatar_url && isValidAvatar(contactProfile.avatar_url)) ? <img src={contactProfile.avatar_url} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-gray-300" />}
               </div>
               <div>
                 <p className="font-black text-sm text-gray-900">@{contactProfile.username}</p>

@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { User, Book, Tag, Camera, Loader2, ArrowLeft, UserPlus, UserMinus, Trophy, Star, MessageCircle, Trash2 } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { Profile, Post } from '../types';
-import { compressImage } from '../src/utils/imageUtils';
+import { compressImage, isValidAvatar } from '../src/utils/imageUtils';
 import PostCard from '../components/PostCard';
 import CreatePostModal from '../components/CreatePostModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -264,12 +264,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
             <div className="w-32 h-32 rounded-[2.5rem] bg-yellow-50 border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center rotate-3">
               {uploading ? (
                 <Loader2 className="animate-spin text-yellow-600" />
-              ) : profile?.avatar_url ? (
+              ) : (profile?.avatar_url && isValidAvatar(profile.avatar_url)) ? (
                 <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
               ) : (
                 <div className="flex flex-col items-center text-yellow-600/50 pt-2">
                   <User size={36} className="mb-1" />
-                  {isOwnProfile && <span className="text-[9px] font-black uppercase tracking-tighter leading-tight text-center">Clique para<br />adicionar foto</span>}
+                  {isOwnProfile && <span className="text-[9px] font-black uppercase tracking-tighter leading-tight text-center">Coloque sua<br />foto aqui</span>}
                 </div>
               )}
             </div>

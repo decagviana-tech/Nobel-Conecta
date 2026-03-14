@@ -6,7 +6,7 @@ import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
 import { awardPoints } from '../src/services/pointsService';
-import { toProxyBase64 } from '../src/utils/imageUtils';
+import { toProxyBase64, isValidAvatar } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
@@ -445,10 +445,10 @@ Confira a resenha completa em:
         <div className="flex items-center justify-between mb-2">
           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-2 group/user">
             <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-yellow-50 flex items-center justify-center overflow-hidden border border-yellow-100 group-hover/user:border-yellow-400 transition-colors">
-              {post.author?.avatar_url ? (
+              {(post.author?.avatar_url && isValidAvatar(post.author.avatar_url)) ? (
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 shrink-0 border-2 border-white shadow-sm">
                   <img
-                    src={post.author?.avatar_url ? getProxiedUrl(post.author.avatar_url) : `https://ui-avatars.com/api/?name=${post.author?.username}`}
+                    src={getProxiedUrl(post.author.avatar_url)}
                     alt={post.author?.username}
                     crossOrigin="anonymous"
                     className="w-full h-full object-cover"

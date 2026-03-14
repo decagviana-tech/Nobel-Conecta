@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, User, LogOut, BookOpen, ShoppingBag, Calendar, PenTool, Users, ArrowRight, Shield, MessageCircle, Gift, Bell, Ticket } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import { Profile } from '../types';
+import { isValidAvatar } from '../src/utils/imageUtils';
 
 interface NavbarProps {
   profile: Profile | null;
@@ -125,7 +126,7 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
           </div>
           <div className="flex items-center gap-2.5 mb-2 bg-gray-50/80 p-2.5 rounded-xl border border-gray-100">
             <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
-              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="text-gray-300" />}
+              {(profile?.avatar_url && isValidAvatar(profile.avatar_url)) ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="text-gray-300" />}
             </div>
             <div className="flex-1 overflow-hidden">
               <p className="font-black text-[11px] text-gray-900 truncate">@{profile?.username || 'leitor'}</p>

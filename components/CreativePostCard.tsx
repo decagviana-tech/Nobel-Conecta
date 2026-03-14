@@ -6,7 +6,7 @@ import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { createNotification } from '../src/services/notificationService';
 import { awardPoints } from '../src/services/pointsService';
-import { toProxyBase64 } from '../src/utils/imageUtils';
+import { toProxyBase64, isValidAvatar } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
@@ -414,8 +414,8 @@ Veja o texto completo no Nobel Conecta:
       <div className="flex items-center justify-between mb-8">
         <Link to={`/profile/${post.user_id}`} className="flex items-center gap-4 group/user">
           <div className="w-12 h-12 rounded-2xl bg-yellow-50 flex items-center justify-center font-black text-yellow-700 text-sm border border-yellow-100 group-hover/user:border-yellow-400 transition-colors overflow-hidden">
-            {post.author?.avatar_url ? (
-              <img src={post.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.author.avatar_url)}&default=${encodeURIComponent(post.author.avatar_url)}` : post.author.avatar_url} alt={post.author.username} crossOrigin="anonymous" className="w-full h-full object-cover" />
+            {(post.author?.avatar_url && isValidAvatar(post.author.avatar_url)) ? (
+              <img src={post.author.avatar_url.startsWith('http') ? `https://images.weserv.nl/?url=${encodeURIComponent(post.author.avatar_url)}&w=400&fit=cover` : post.author.avatar_url} alt={post.author.username} crossOrigin="anonymous" className="w-full h-full object-cover" />
             ) : (
               <span>{post.author?.full_name?.[0] || post.author?.username?.[0]}</span>
             )}
@@ -497,7 +497,7 @@ Veja o texto completo no Nobel Conecta:
                 return (
                   <div key={c.id} className="flex gap-3 items-start group/comment">
                     <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                      {c.author?.avatar_url ? (
+                      {(c.author?.avatar_url && isValidAvatar(c.author.avatar_url)) ? (
                         <img
                           src={getProxiedUrl(c.author.avatar_url)}
                           alt={c.author?.username}

@@ -131,6 +131,7 @@ CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT
 
 CREATE POLICY "Posts are viewable by everyone" ON public.posts FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own posts" ON public.posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own posts" ON public.posts FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Admins can delete posts" ON public.posts FOR DELETE USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') OR auth.uid() = user_id
 );
@@ -150,6 +151,7 @@ CREATE POLICY "Users can delete their own likes" ON public.likes FOR DELETE USIN
 
 CREATE POLICY "Comments are viewable by everyone" ON public.comments FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own comments" ON public.comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own comments" ON public.comments FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own comments" ON public.comments FOR DELETE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
@@ -160,7 +162,54 @@ CREATE POLICY "Anyone can insert notifications" ON public.notifications FOR INSE
 -- Enable Realtime for notifications
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 
--- 10. Rewards table
+-- 10. Creative Space (Mural)
+CREATE TABLE public.creative_posts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  title TEXT,
+  content TEXT NOT NULL,
+  type TEXT DEFAULT 'poem',
+  images TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE public.creative_likes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  post_id UUID REFERENCES public.creative_posts (id) ON DELETE CASCADE NOT NULL,
+  UNIQUE(user_id, post_id)
+);
+
+CREATE TABLE public.creative_comments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  post_id UUID REFERENCES public.creative_posts (id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS for Creative Space
+ALTER TABLE public.creative_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.creative_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.creative_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Creative posts are viewable by everyone" ON public.creative_posts FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own creative posts" ON public.creative_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own creative posts" ON public.creative_posts FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Admins or owners can delete creative posts" ON public.creative_posts FOR DELETE USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') OR auth.uid() = user_id
+);
+
+CREATE POLICY "Creative likes are viewable by everyone" ON public.creative_likes FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own creative likes" ON public.creative_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own creative likes" ON public.creative_likes FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Creative comments are viewable by everyone" ON public.creative_comments FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own creative comments" ON public.creative_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own creative comments" ON public.creative_comments FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own creative comments" ON public.creative_comments FOR DELETE USING (auth.uid() = user_id);
+
+-- 11. Rewards table
 CREATE TABLE public.rewards (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
@@ -231,4 +280,14 @@ ON CONFLICT (id) DO NOTHING;
 -- Storage Policies
 CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id IN ('avatars', 'posts', 'rewards', 'giveaways', 'events') );
 CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK ( bucket_id IN ('avatars', 'posts', 'rewards', 'giveaways', 'events') AND auth.role() = 'authenticated' );
+*/
+
+-- Cleanup script for common placeholder avatars
+-- Run this if you want to clear the "woman photo" from existing profiles
+/*
+UPDATE public.profiles 
+SET avatar_url = NULL 
+WHERE avatar_url ILIKE '%1494790108377%' 
+   OR avatar_url ILIKE '%1535713875002%' 
+   OR avatar_url ILIKE '%1438761681033%';
 */

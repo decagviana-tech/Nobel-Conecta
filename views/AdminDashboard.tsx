@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAdmin } from '../src/hooks/useAdmin';
 import ConfirmModal from '../components/ConfirmModal';
+import { isValidAvatar } from '../src/utils/imageUtils';
 
 interface AdminDashboardProps {
   profile: Profile | null;
@@ -396,7 +397,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                         <td className="px-8 py-5">
                           <div className="flex items-center gap-4">
                             <img
-                              src={(u.avatar_url && !u.avatar_url.includes('dicebear')) ? u.avatar_url : `https://ui-avatars.com/api/?name=${u.username?.replace(/^@/, '')}&background=EAB308&color=000&bold=true`}
+                              src={(u.avatar_url && isValidAvatar(u.avatar_url) && !u.avatar_url.includes('dicebear')) ? u.avatar_url : `https://ui-avatars.com/api/?name=${u.username?.replace(/^@/, '')}&background=EAB308&color=000&bold=true`}
                               className="w-10 h-10 rounded-xl border-2 border-gray-100"
                               alt=""
                             />
@@ -520,7 +521,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                         <td className="px-8 py-5">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-100">
-                              {p.author?.avatar_url ? (
+                              {(p.author?.avatar_url && isValidAvatar(p.author.avatar_url)) ? (
                                 <img src={p.author.avatar_url} className="w-full h-full object-cover" alt="" />
                               ) : (
                                 <UserIcon size={14} className="text-gray-300" />
@@ -612,7 +613,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                           <td className="px-8 py-5">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-100">
-                                {u?.avatar_url ? (
+                                {u?.avatar_url && isValidAvatar(u.avatar_url) ? (
                                   <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
                                 ) : (
                                   <UserIcon size={14} className="text-gray-300" />

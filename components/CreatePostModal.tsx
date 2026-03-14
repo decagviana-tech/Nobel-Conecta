@@ -98,10 +98,28 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
       }
 
       if (editingPost) {
-        const { error } = await supabase.from('posts').update(postData).eq('id', editingPost.id);
+        const { error, data: updatedData } = await supabase
+          .from('posts')
+          .update(postData)
+          .eq('id', editingPost.id)
+          .select('*, author:profiles(*)')
+          .single();
+
         if (error) {
           console.error('Supabase update error:', error);
           throw new Error(`Erro ao atualizar no banco: ${error.message}`);
+        }
+
+        if (updatedData) {
+          // No Supabase, as curtidas e comentários são contados separadamente no ProfileView
+          // Mas para o retorno imediato, podemos tentar preservar os contadores atuais
+          onSuccess({
+            ...updatedData,
+            likes_count: editingPost.likes_count,
+            comments_count: editingPost.comments_count,
+            user_has_liked: editingPost.user_has_liked
+          } as Post);
+          return;
         }
       } else {
         const { error } = await supabase.from('posts').insert(postData);

@@ -62,3 +62,27 @@ export async function toProxyBase64(url: string): Promise<string> {
         return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     }
 }
+
+/**
+ * Verifica se um avatar_url é válido (ou seja, não é um placeholder indesejado).
+ */
+export function isValidAvatar(url: string | null | undefined): boolean {
+  if (!url) return false;
+  
+  // Lista de IDs de fotos do Unsplash que são comumente usadas como placeholders genéricos
+  const forbiddenIds = [
+    '1494790108377', // A foto da mulher que o usuário mencionou
+    '1535713875002', // Homem (comum)
+    '1438761681033', // Mulher (comum)
+    '1570295999233'  // Outro comum
+  ];
+
+  const lowerUrl = url.toLowerCase();
+  
+  // Se for da Dicebear ou UI Avatars, consideramos válido para o fallback do sistema,
+  // mas se o usuário quer "coloque sua foto aqui", talvez queiramos ignorar até esses?
+  // O usuário disse: "quando o usuário não coloca uma foto pessoal continua aparecendo"
+  // Então se a URL for da Dicebear/UI-Avatars e o usuário não a "escolheu", pode ser um problema.
+  
+  return !forbiddenIds.some(id => lowerUrl.includes(id));
+}
