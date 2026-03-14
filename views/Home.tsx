@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Plus, BookText, Search, X, Users, Compass, ShoppingBag, PenTool } from 'lucide-react';
+import { Plus, BookText, Search, X, Users, Compass, ShoppingBag, PenTool, Loader2 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from '../supabase';
 import { Post, Profile } from '../types';
 import PostCard from '../components/PostCard';
 import CreatePostModal from '../components/CreatePostModal';
 import { awardPoints } from '../src/services/pointsService';
+import { isValidAvatar } from '../src/utils/imageUtils';
 
 interface HomeProps {
   profile: Profile | null;
@@ -23,6 +24,9 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<Profile[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
 
   useEffect(() => {
     fetchPosts();
@@ -167,6 +171,39 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
     }
   };
 
+  const handleSearchUsers = async (term: string) => {
+    setSearchTerm(term);
+    if (term.length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setIsSearchLoading(true);
+
+    if (!isSupabaseConfigured) {
+      setSearchResults([]);
+      setIsSearchLoading(false);
+      return;
+    }
+
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .or(`username.ilike.%${term}%,full_name.ilike.%${term}%`)
+        .neq('id', profile?.id)
+        .limit(5);
+
+      setSearchResults(data || []);
+    } catch (err) {
+      console.error('Error searching users:', err);
+    } finally {
+      setIsSearchLoading(false);
+    }
+  };
+
   const filteredPosts = posts.filter(post => {
     const matchesSearch = !searchTerm ||
       post.book_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -221,12 +258,67 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="O que você quer ler hoje?"
+          placeholder="O que você quer ler hoje? (ou busque um leitor)"
           className="w-full pl-10 pr-10 py-3 bg-white border border-gray-100 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-yellow-400 text-sm font-bold"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => handleSearchUsers(e.target.value)}
         />
-        {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><X size={16} /></button>}
+        {(searchTerm || isSearching) && (
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setSearchResults([]);
+              setIsSearching(false);
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+          >
+            <X size={16} />
+          </button>
+        )}
+
+        {/* Resultados da Busca de Usuários */}
+        {isSearching && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-4 bg-gray-50/50 border-b border-gray-50 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Leitores Encontrados</span>
+              {isSearchLoading && <Loader2 size={12} className="animate-spin text-yellow-500" />}
+            </div>
+            <div className="p-2 space-y-1">
+              {searchResults.length > 0 ? (
+                searchResults.map(user => (
+                  <Link
+                    key={user.id}
+                    to={`/profile/${user.id}`}
+                    className="flex items-center gap-3 p-3 hover:bg-yellow-50 rounded-xl transition-all group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-100">
+                      {(user.avatar_url && isValidAvatar(user.avatar_url)) ? (
+                        <img src={user.avatar_url} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                          <Users size={20} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-xs text-gray-900 truncate group-hover:text-yellow-600 transition-colors">@{user.username}</p>
+                      <p className="text-[9px] text-gray-400 truncate">{user.full_name}</p>
+                    </div>
+                  </Link>
+                ))
+              ) : !isSearchLoading && (
+                <div className="p-6 text-center">
+                  <p className="text-[10px] text-gray-400 italic">Nenhum leitor encontrado com "{searchTerm}"</p>
+                </div>
+              )}
+            </div>
+            {searchTerm.length >= 2 && (
+              <div className="p-3 bg-gray-50 text-center">
+                <p className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">Mostrando resultados para pessoas. Role para baixo para ver as resenhas.</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-4 pb-20">

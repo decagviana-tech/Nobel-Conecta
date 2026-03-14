@@ -1,5 +1,5 @@
-
 import { supabase, isSupabaseConfigured } from '../../supabase';
+import { createNotification } from './notificationService';
 
 export const followUser = async (followerId: string, followingId: string) => {
     if (!isSupabaseConfigured) {
@@ -15,6 +15,29 @@ export const followUser = async (followerId: string, followingId: string) => {
     const { error } = await supabase
         .from('follows')
         .insert({ follower_id: followerId, following_id: followingId });
+
+    if (!error) {
+        // Enviar notificação para o usuário que recebeu o novo seguidor
+        try {
+            const { data: followerProfile } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('id', followerId)
+                .single();
+
+            if (followerProfile) {
+                await createNotification(
+                    followingId,
+                    'follow',
+                    'Você tem um novo seguidor!',
+                    `@${followerProfile.username} começou a te seguir.`,
+                    `/profile/${followerId}`
+                );
+            }
+        } catch (err) {
+            console.error('Erro ao enviar notificação de seguidor:', err);
+        }
+    }
 
     return !error;
 };

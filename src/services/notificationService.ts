@@ -1,7 +1,7 @@
 
 import { supabase, isSupabaseConfigured } from '../../supabase';
 
-export type NotificationType = 'message' | 'comment' | 'like' | 'giveaway' | 'system';
+export type NotificationType = 'message' | 'comment' | 'like' | 'follow' | 'giveaway' | 'system';
 
 export async function createNotification(
   userId: string,
