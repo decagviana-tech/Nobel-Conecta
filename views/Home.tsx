@@ -258,7 +258,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="O que você quer ler hoje? (ou busque um leitor)"
+          placeholder="Busque um livro ou leitor"
           className="w-full pl-10 pr-10 py-3 bg-white border border-gray-100 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-yellow-400 text-sm font-bold"
           value={searchTerm}
           onChange={(e) => handleSearchUsers(e.target.value)}
