@@ -73,7 +73,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
     try {
       const { data, error } = await supabase
         .from('book_clubs')
-        .select('*')
+        .select('*, club_members(count)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -99,7 +99,6 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
       current_book_author: 'Autor Indefinido',
       image_url: newImageUrl,
       admin_id: profile.id,
-      member_ids: [profile.id],
       created_at: new Date().toISOString()
     };
 
@@ -123,8 +122,12 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
           const { error } = await supabase.from('book_clubs').update(clubData).eq('id', editingClubId);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from('book_clubs').insert(clubData);
+          const { data: newClub, error } = await supabase.from('book_clubs').insert(clubData).select().single();
           if (error) throw error;
+          
+          if (newClub) {
+            await supabase.from('club_members').insert({ club_id: newClub.id, user_id: profile.id });
+          }
         }
         fetchClubs();
       } catch (err) {
@@ -238,7 +241,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
                   <span className="bg-yellow-400 text-black text-[8px] font-black uppercase px-2 py-1 rounded-md flex items-center gap-1">
                     <BookOpen size={10} /> Lendo: {club.current_book}
                   </span>
-                  <span className="text-[9px] text-gray-300 font-bold uppercase">{club.member_ids.length} membros</span>
+                  <span className="text-[9px] text-gray-300 font-bold uppercase">{club.club_members?.[0]?.count || club.member_ids?.length || 0} membros</span>
                 </div>
               </div>
               <ChevronRight className="text-gray-200 group-hover:text-black transition-colors" size={24} />

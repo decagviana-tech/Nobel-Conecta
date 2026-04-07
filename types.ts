@@ -7,7 +7,7 @@ export interface Profile {
   bio?: string;
   favorite_genres: string[];
   reading_now?: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'superadmin';
   email?: string;
   following_ids?: string[];
   points?: number;
@@ -22,7 +22,8 @@ export interface BookClub {
   current_book_author: string;
   image_url: string;
   admin_id: string;
-  member_ids: string[];
+  member_ids?: string[];
+  club_members?: { count: number }[];
   created_at: string;
 }
 

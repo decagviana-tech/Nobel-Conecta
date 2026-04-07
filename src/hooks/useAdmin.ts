@@ -8,13 +8,5 @@ import { Profile } from '../../types';
  */
 export const useAdmin = (profile: Profile | null): boolean => {
     if (!profile) return false;
-
-    const adminUsernames = ['nobel_oficial', 'nobelpetro'];
-    const adminEmails = ['nobel.petropolis@gmail.com', 'decagviana@gmail.com'];
-
-    return (
-        profile.role === 'admin' ||
-        adminUsernames.includes(profile.username) ||
-        (profile.email && adminEmails.includes(profile.email))
-    );
+    return profile.role === 'admin' || profile.role === 'superadmin';
 };
