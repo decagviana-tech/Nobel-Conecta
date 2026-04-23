@@ -15,6 +15,9 @@ interface CreativeSpaceProps {
 const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
   const [posts, setPosts] = useState<CreativePost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingPost, setEditingPost] = useState<CreativePost | undefined>(undefined);
   const [newPost, setNewPost] = useState({
@@ -37,10 +40,10 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
   });
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(0);
   }, []);
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (pageNum = 0) => {
     try {
       if (!isSupabaseConfigured) {
         // Demo mode
@@ -57,30 +60,56 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
           created_at: new Date().toISOString()
         }];
         setPosts(demo);
-        setLoading(false);
+        setHasMore(false);
+        if (pageNum === 0) setLoading(false);
+        else setLoadingMore(false);
         return;
       }
 
-      const { data, error } = await supabase
+      const PAGE_SIZE = 20;
+      const from = pageNum * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
         .from('creative_posts')
         .select(`
           *,
           author:profiles(*),
           creative_likes(count),
           creative_comments(count)
-        `)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-      setPosts(data.map((p: any) => ({
+      
+      const newPosts = data.map((p: any) => ({
         ...p,
         likes_count: p.creative_likes?.[0]?.count || 0,
         comments_count: p.creative_comments?.[0]?.count || 0
-      })));
+      }));
+
+      if (pageNum === 0) {
+        setPosts(newPosts);
+      } else {
+        setPosts(prev => [...prev, ...newPosts]);
+      }
+      
+      setHasMore(count !== null && (pageNum + 1) * PAGE_SIZE < count);
     } catch (err) {
       console.error('Error fetching creative posts:', err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      setLoadingMore(true);
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchPosts(nextPage);
     }
   };
 
@@ -115,7 +144,8 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
       setShowCreateModal(false);
       setEditingPost(undefined);
       setNewPost({ title: '', content: '', type: 'poem', image_url: '' });
-      fetchPosts();
+      setPage(0);
+      fetchPosts(0);
     } catch (err) {
       alert('Erro ao publicar.');
     } finally {
@@ -155,7 +185,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
             await awardPoints(postToDelete.user_id, 'creative', null, -10);
           }
 
-          fetchPosts();
+          setPosts(prev => prev.filter(p => p.id !== id));
         } catch (err) {
           alert('Erro ao excluir.');
         }
@@ -224,6 +254,25 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
           </div>
         ))}
       </div>
+
+      {hasMore && posts.length > 0 && !loading && (
+        <div className="flex justify-center pt-4 pb-8">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="bg-white border-2 border-yellow-400 text-black px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-400 hover:text-black transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Carregando...
+              </>
+            ) : (
+              'Carregar Mais Obras'
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Modal de Criação */}
       {showCreateModal && (

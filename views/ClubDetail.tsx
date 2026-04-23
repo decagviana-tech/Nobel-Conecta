@@ -306,7 +306,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
                 <PostCard
                   key={post.id}
                   post={post}
-                  currentUser={profile}
+                  currentProfile={profile}
                   onEdit={(p) => {
                     setEditingPost(p);
                     setShowCreatePost(true);
@@ -378,16 +378,23 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
         )}
       </div>
 
-      <CreatePostModal
-        isOpen={showCreatePost || !!editingPost}
-        onClose={() => {
-          setShowCreatePost(false);
-          setEditingPost(null);
-        }}
-        clubId={id}
-        onPostCreated={fetchClubData}
-        editingPost={editingPost || undefined}
-      />
+      {(showCreatePost || !!editingPost) && profile && (
+        <CreatePostModal
+          userId={profile.id}
+          currentProfile={profile}
+          onClose={() => {
+            setShowCreatePost(false);
+            setEditingPost(null);
+          }}
+          onSuccess={() => {
+            setShowCreatePost(false);
+            setEditingPost(null);
+            fetchClubData();
+          }}
+          postType="review"
+          editingPost={editingPost || undefined}
+        />
+      )}
 
       <ConfirmModal
         isOpen={confirmModal.isOpen}

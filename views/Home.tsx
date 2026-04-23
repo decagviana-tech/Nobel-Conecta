@@ -6,6 +6,7 @@ import { isSupabaseConfigured, supabase } from '../supabase';
 import { Post, Profile } from '../types';
 import PostCard from '../components/PostCard';
 import CreatePostModal from '../components/CreatePostModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { awardPoints } from '../src/services/pointsService';
 import { isValidAvatar } from '../src/utils/imageUtils';
 
@@ -19,6 +20,9 @@ const FOLLOW_KEY = 'nobel_conecta_following';
 const Home: React.FC<HomeProps> = ({ profile }) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'explorar' | 'seguindo'>('explorar');
   const [searchParams] = useSearchParams();
@@ -27,9 +31,13 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; postId: string | null }>({
+    isOpen: false,
+    postId: null
+  });
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(0);
     loadFollowing();
   }, [profile?.id]);
 
@@ -58,7 +66,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
     }
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (pageNum = 0) => {
     if (!isSupabaseConfigured) {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -90,29 +98,55 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         setPosts([initialPost]);
         localStorage.setItem(STORAGE_KEY, JSON.stringify([initialPost]));
       }
-      setLoading(false);
+      setHasMore(false);
+      if (pageNum === 0) setLoading(false);
+      else setLoadingMore(false);
       return;
     }
 
     try {
-      const { data, error } = await supabase
+      const PAGE_SIZE = 20;
+      const from = pageNum * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
         .from('posts')
-        .select(`*, author:profiles(*), likes:likes(user_id), comments:comments(count)`)
+        .select(`*, author:profiles(*), likes:likes(user_id), comments:comments(count)`, { count: 'exact' })
         .eq('type', 'review')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-      console.log('Fetched posts data:', data);
-      setPosts(data.map((p: any) => ({
+      console.log('Fetched posts data for page', pageNum, ':', data);
+      
+      const newPosts = data.map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
         comments_count: p.comments?.[0]?.count || 0,
         user_has_liked: profile?.id ? p.likes?.some((l: any) => l.user_id === profile.id) : false
-      })));
+      }));
+
+      if (pageNum === 0) {
+        setPosts(newPosts);
+      } else {
+        setPosts(prev => [...prev, ...newPosts]);
+      }
+      
+      setHasMore(count !== null && (pageNum + 1) * PAGE_SIZE < count);
     } catch (err) {
-      setLoading(false);
+      console.error('Erro ao buscar posts:', err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      setLoadingMore(true);
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchPosts(nextPage);
     }
   };
 
@@ -126,15 +160,17 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify([reviewPost, ...allPosts]));
       }
     } else {
-      fetchPosts();
+      setPage(0);
+      fetchPosts(0);
     }
     setShowCreateModal(false);
   };
 
+  const confirmDeletePost = (postId: string) => {
+    setConfirmDelete({ isOpen: true, postId });
+  };
+
   const handleDeletePost = async (postId: string) => {
-    console.log('handleDeletePost iniciada para ID:', postId);
-    // Removido window.confirm pois está travando no ambiente do usuário
-    const confirmed = true;
 
     if (!isSupabaseConfigured) {
       console.log('Modo Demo: excluindo localmente...');
@@ -238,7 +274,13 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       {/* Seletor de Abas */}
       <div className="flex border-b border-gray-100 mb-6 bg-white rounded-t-2xl overflow-hidden">
         <button
-          onClick={() => setActiveTab('explorar')}
+          onClick={() => {
+            setActiveTab('explorar');
+            if (activeTab !== 'explorar') {
+              setPage(0);
+              fetchPosts(0);
+            }
+          }}
           className={`flex-1 flex items-center justify-center gap-2 py-4 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'explorar' ? 'text-black border-b-2 border-yellow-400 bg-yellow-50/30' : 'text-gray-400 hover:text-black'}`}
         >
           <Compass size={16} /> Explorar
@@ -326,7 +368,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
           [1, 2].map(i => <div key={i} className="h-40 bg-gray-50 rounded-2xl animate-pulse"></div>)
         ) : filteredPosts.length > 0 ? (
           filteredPosts.map(post => (
-            <PostCard key={post.id} post={post} currentProfile={profile} onDelete={handleDeletePost} />
+            <PostCard key={post.id} post={post} currentProfile={profile} onDelete={confirmDeletePost} />
           ))
         ) : (
           <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">
@@ -334,6 +376,26 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
             <p className="text-gray-400 font-bold uppercase text-[11px] tracking-[0.2em]">
               {activeTab === 'seguindo' ? 'Siga alguém para ver atualizações aqui' : 'Nenhuma resenha encontrada'}
             </p>
+          </div>
+        )}
+
+        {/* Load More Button */}
+        {hasMore && filteredPosts.length > 0 && !loading && (
+          <div className="flex justify-center pt-4 pb-8">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="bg-white border-2 border-yellow-400 text-black px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-400 hover:text-black transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Carregando...
+                </>
+              ) : (
+                'Carregar Mais Resenhas'
+              )}
+            </button>
           </div>
         )}
       </div>
@@ -347,6 +409,22 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
           postType="review"
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        title="Excluir Publicação?"
+        message="Essa ação é irreversível. A resenha e todos os comentários/curtidas associados serão removidos permanentemente."
+        confirmLabel="Sim, Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDelete.postId) {
+            handleDeletePost(confirmDelete.postId);
+          }
+          setConfirmDelete({ isOpen: false, postId: null });
+        }}
+        onCancel={() => setConfirmDelete({ isOpen: false, postId: null })}
+      />
     </div>
   );
 };

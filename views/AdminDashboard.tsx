@@ -72,11 +72,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
 
     try {
       const results = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('shop_books').select('*').order('title', { ascending: true }),
-        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }),
-        supabase.from('redemptions').select('*, user:profiles!user_id(*), reward:rewards!reward_id(*)').order('created_at', { ascending: false }),
-        supabase.from('giveaways').select('*, participants:giveaway_participants(profiles(username))').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('shop_books').select('*').order('title', { ascending: true }).limit(50),
+        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }).limit(50),
+        supabase.from('redemptions').select('*, user:profiles!user_id(*), reward:rewards!reward_id(*)').order('created_at', { ascending: false }).limit(50),
+        supabase.from('giveaways').select('*, participants:giveaway_participants(profiles(username))').order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('giveaways').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('likes').select('*', { count: 'exact', head: true }),

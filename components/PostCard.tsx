@@ -57,50 +57,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onE
   }, [post.id, post.user_has_liked, post.likes_count, post.comments_count, isLiking, isSubmittingComment]);
 
   useEffect(() => {
-    if (isSupabaseConfigured && post.id) {
-      const likesChannel = supabase
-        .channel(`post_likes:${post.id}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'likes',
-          filter: `post_id=eq.${post.id}`
-        }, async () => {
-          const { count, error } = await supabase
-            .from('likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          if (!error && count !== null) {
-            setLikesCount(count);
-          }
-        })
-        .subscribe();
-
-      const commentsChannel = supabase
-        .channel(`post_comments:${post.id}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'comments',
-          filter: `post_id=eq.${post.id}`
-        }, async () => {
-          const { count, error } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          if (!error && count !== null) {
-            setCommentsCount(count);
-          }
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(likesChannel);
-        supabase.removeChannel(commentsChannel);
-      };
-    }
+    // Realtime subscriptions removed to prevent connection limit exhaustion on Free tier (200 connections max)
   }, [post.id]);
 
   const handleShare = async () => {

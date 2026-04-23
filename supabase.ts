@@ -56,12 +56,7 @@ export async function uploadFile(bucket: string, file: File): Promise<string> {
 
     return publicUrl;
   } catch (err) {
-    console.error('Erro no upload real:', err);
-    // Fallback para Base64 se o upload real falhar
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    });
+    console.error('Erro no upload:', err);
+    throw new Error('Não foi possível fazer o upload da imagem. Verifique sua conexão e tente novamente.');
   }
 }

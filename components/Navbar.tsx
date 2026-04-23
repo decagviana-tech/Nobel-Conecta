@@ -5,6 +5,7 @@ import { Home, User, LogOut, BookOpen, ShoppingBag, Calendar, PenTool, Users, Ar
 import NotificationBell from './NotificationBell';
 import { Profile } from '../types';
 import { isValidAvatar } from '../src/utils/imageUtils';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface NavbarProps {
   profile: Profile | null;
@@ -14,9 +15,7 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
   const location = useLocation();
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(profile);
 
   const MobileNavLink = ({ to, icon: Icon, label }: any) => {
     const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));

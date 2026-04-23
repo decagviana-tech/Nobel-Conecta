@@ -25,6 +25,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { compressImage } from '../src/utils/imageUtils';
 import ConfirmModal from '../components/ConfirmModal';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface RewardsViewProps {
   profile: Profile | null;
@@ -49,9 +50,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
   const [error, setError] = useState<string | null>(null);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
 
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(profile);
 
   const [rewardToDelete, setRewardToDelete] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
