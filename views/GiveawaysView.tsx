@@ -6,6 +6,7 @@ import { awardPoints } from '../src/services/pointsService';
 import { Profile, Giveaway } from '../types';
 import { compressImage } from '../src/utils/imageUtils';
 import ConfirmModal from '../components/ConfirmModal';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface GiveawaysViewProps {
   profile: Profile | null;
@@ -41,9 +42,7 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     onConfirm: () => { }
   });
 
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(profile);
 
   useEffect(() => {
     fetchGiveaways();

@@ -10,6 +10,7 @@ import { toProxyBase64, isValidAvatar } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { Link } from 'react-router-dom';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface PostCardProps {
   post: Post;
@@ -31,9 +32,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onE
 
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
 
-  const isAdmin = currentProfile?.role === 'admin' ||
-    currentProfile?.username === 'nobel_oficial' ||
-    currentProfile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(currentProfile);
   const isOwner = currentProfile?.id === post.user_id;
 
   useEffect(() => {

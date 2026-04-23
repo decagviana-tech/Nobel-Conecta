@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ConfirmModal from '../components/ConfirmModal';
 import { compressImage } from '../src/utils/imageUtils';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface EventsViewProps {
   profile: Profile | null;
@@ -46,9 +47,7 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
     onConfirm: () => { }
   });
 
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(profile);
 
   useEffect(() => {
     fetchEvents();

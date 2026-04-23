@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../supabase';
@@ -6,6 +5,7 @@ import { BookClub as Club, Post, Profile } from '../types';
 import PostCard from '../components/PostCard';
 import { Users, Info, ChevronLeft, Calendar, MessageSquare, Shield, BookOpen, Trash2, Plus, PenSquare } from 'lucide-react';
 import CreatePostModal from '../components/CreatePostModal';
+import { useAdmin } from '../src/hooks/useAdmin';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ConfirmModal from '../components/ConfirmModal';
@@ -37,10 +37,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
     onConfirm: () => { }
   });
 
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro' ||
-    club?.admin_id === profile?.id;
+  const isAdmin = useAdmin(profile) || club?.admin_id === profile?.id;
 
   useEffect(() => {
     if (id) {

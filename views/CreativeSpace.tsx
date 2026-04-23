@@ -7,12 +7,14 @@ import CreativePostCard from '../components/CreativePostCard';
 import ConfirmModal from '../components/ConfirmModal';
 import { awardPoints } from '../src/services/pointsService';
 import { compressImage } from '../src/utils/imageUtils';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface CreativeSpaceProps {
   profile: Profile | null;
 }
 
 const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
+  const isAdmin = useAdmin(profile);
   const [posts, setPosts] = useState<CreativePost[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -249,7 +251,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
               currentProfile={profile}
               onDelete={handleDeletePost}
               onEdit={handleEdit}
-              isAdmin={profile?.role === 'admin'}
+              isAdmin={isAdmin}
             />
           </div>
         ))}

@@ -8,6 +8,7 @@ import PostCard from '../components/PostCard';
 import CreatePostModal from '../components/CreatePostModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { awardPoints } from '../src/services/pointsService';
+import { deletePost } from '../src/services/postService';
 import { isValidAvatar } from '../src/utils/imageUtils';
 
 interface HomeProps {
@@ -184,21 +185,10 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       }
     } else {
       try {
-        console.log('Chamando Supabase para deletar post:', postId);
-
         const postToDelete = posts.find(p => p.id === postId);
-
-        const { error } = await supabase.from('posts').delete().eq('id', postId);
-        if (error) {
-          console.error('Erro do Supabase na exclusão:', error);
-          throw error;
-        }
-
         if (postToDelete) {
-          await awardPoints(postToDelete.user_id, 'review', null, -10);
+          await deletePost(postId, postToDelete.user_id, 'review', -10);
         }
-
-        console.log('Post deletado com sucesso do Supabase.');
         setPosts(prev => prev.filter(p => p.id !== postId));
       } catch (err: any) {
         console.error('Erro capturado no catch de exclusão:', err);

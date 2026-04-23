@@ -5,6 +5,7 @@ import { Users, Plus, BookOpen, ChevronRight, Search, X, ArrowLeft, Trash2, Edit
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { BookClub, Profile } from '../types';
 import { compressImage } from '../src/utils/imageUtils';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 interface BookClubsProps {
   profile: Profile | null;
@@ -157,9 +158,7 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
     c.current_book.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(profile);
 
   const handleDeleteClub = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();

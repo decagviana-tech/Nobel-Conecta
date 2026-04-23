@@ -2,11 +2,18 @@
 import { Profile } from '../../types';
 
 /**
- * Centraliza a lógica para verificar se um perfil tem privilégios de administrador.
- * @param profile O perfil do usuário logado.
- * @returns boolean indicando se o usuário é administrador.
+ * Centralized admin check. Use this everywhere instead of
+ * duplicating role/username checks across components.
+ *
+ * Works both as a React hook (inside components) and as a
+ * plain function (it has no React hooks internally).
  */
 export const useAdmin = (profile: Profile | null): boolean => {
     if (!profile) return false;
-    return profile.role === 'admin' || profile.role === 'superadmin';
+    return (
+        profile.role === 'admin' ||
+        profile.role === 'superadmin' ||
+        profile.username === 'nobel_oficial' ||
+        profile.username === 'nobelpetro'
+    );
 };

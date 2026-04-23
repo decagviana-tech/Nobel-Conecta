@@ -10,6 +10,7 @@ import CreatePostModal from '../components/CreatePostModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { followUser, unfollowUser, isFollowingUser } from '../src/services/socialService';
 import { awardPoints } from '../src/services/pointsService';
+import { deletePost } from '../src/services/postService';
 
 interface ProfileViewProps {
   currentUserId: string;
@@ -231,14 +232,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
         } else {
           try {
             const postToDelete = posts.find(p => p.id === postId);
-
-            const { error } = await supabase.from('posts').delete().eq('id', postId);
-            if (error) throw error;
-
             if (postToDelete) {
-              await awardPoints(postToDelete.user_id, 'review', null, -10);
+              await deletePost(postId, postToDelete.user_id, 'review', -10);
             }
-
             setPosts(posts.filter(p => p.id !== postId));
           } catch (err: any) {
             alert('Erro ao excluir publicação: ' + (err.message || 'Acesso negado'));

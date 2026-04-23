@@ -5,6 +5,7 @@ import { ShoppingBag, MessageCircle, Plus, Trash2, X, Tag, Camera, Loader2, Book
 import { Book, Profile } from '../types';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { compressImage } from '../src/utils/imageUtils';
+import { useAdmin } from '../src/hooks/useAdmin';
 
 const INITIAL_BOOKS: Book[] = [
   { id: '1', title: 'Torto Arado', author: 'Itamar Vieira Junior', price: 'R$ 64,90', cover_url: 'https://m.media-amazon.com/images/I/81S89vV7YmL.jpg', description: 'Um fenômeno literário.' },
@@ -31,9 +32,7 @@ const Shop: React.FC<ShopProps> = ({ profile }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const isAdmin = profile?.role === 'admin' ||
-    profile?.username === 'nobel_oficial' ||
-    profile?.username === 'nobelpetro';
+  const isAdmin = useAdmin(profile);
 
   useEffect(() => {
     fetchBooks();
