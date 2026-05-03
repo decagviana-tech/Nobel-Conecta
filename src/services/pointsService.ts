@@ -10,7 +10,7 @@ const POINTS_MAP: Record<PointsAction, number> = {
   creative: 10,
   club_thought: 10,
   comment: 2,
-  like: 1,
+  like: 0,
   giveaway: 5,
   join_club: 5
 };
