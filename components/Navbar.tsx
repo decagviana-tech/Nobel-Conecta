@@ -151,6 +151,7 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
         <MobileNavLink to="/clubs" icon={Users} label="Clubes" />
         <MobileNavLink to="/events" icon={Calendar} label="Agenda" />
         <MobileNavLink to="/giveaways" icon={Gift} label="Prêmios" />
+        <MobileNavLink to="/rewards" icon={Ticket} label="Pontos" />
         <MobileNavLink to={`/profile/${profile?.id}`} icon={User} label="Perfil" />
       </nav>
     </>

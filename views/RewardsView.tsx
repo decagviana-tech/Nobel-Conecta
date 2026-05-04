@@ -539,10 +539,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Comentar</p>
             <p className="text-sm font-black text-black">+2 pts</p>
           </div>
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-            <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Curtir</p>
-            <p className="text-sm font-black text-black">+1 pt</p>
-          </div>
+
           <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
             <p className="text-[8px] font-black text-gray-400 uppercase mb-0.5">Sorteio</p>
             <p className="text-sm font-black text-black">+5 pts</p>
