@@ -36,6 +36,33 @@ const App: React.FC = () => {
       if (isMounted.current) setLoading(false);
     }, 5000);
 
+    // Interceptar tokens de recovery do Supabase que conflitam com o HashRouter
+    // O Supabase envia: site.com/#access_token=...&type=recovery
+    // O HashRouter interpreta tudo após # como rota, quebrando o fluxo
+    const fullHash = window.location.hash;
+    if (fullHash && fullHash.includes('access_token') && fullHash.includes('type=recovery')) {
+      // Extrair os parâmetros do token da URL
+      const hashParams = fullHash.replace(/^#\/?/, '').replace('reset-password#', '');
+      const params = new URLSearchParams(hashParams);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && isSupabaseConfigured) {
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || ''
+        }).then(({ data, error }) => {
+          if (!error && data.session) {
+            setSession(data.session);
+            // Redirecionar para a rota de reset dentro do HashRouter
+            window.location.hash = '#/reset-password';
+          }
+          if (isMounted.current) setLoading(false);
+        });
+        return () => { isMounted.current = false; clearTimeout(timeout); };
+      }
+    }
+
     const checkSession = async () => {
       try {
         if (!isSupabaseConfigured) {
