@@ -4,6 +4,21 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", serif;
+
+  /* Paleta dourada sofisticada — substitui o amarelo "infantil" */
+  --color-yellow-50: #FBF7EE;
+  --color-yellow-100: #F5ECDA;
+  --color-yellow-200: #EBDAB5;
+  --color-yellow-300: #D4B978;
+  --color-yellow-400: #C5A04E;
+  --color-yellow-500: #B08A3E;
+  --color-yellow-600: #9A7235;
+  --color-yellow-700: #7D5A2D;
+  --color-yellow-800: #664929;
+  --color-yellow-900: #553D25;
+
+  /* Fundo neutro sofisticado — substitui o azul claro */
+  --color-blue-50: #F8F8F6;
 }
 
 @layer base {
@@ -11,6 +26,11 @@
     @apply bg-white text-gray-900;
     font-size: 16px;
   }
+
+  /* Reduzir arredondamentos excessivos globalmente */
+  .rounded-\[2\.5rem\] { border-radius: 1.25rem !important; }
+  .rounded-\[2rem\] { border-radius: 1rem !important; }
+  .rounded-\[1\.5rem\] { border-radius: 1rem !important; }
 
   /* Prevent text from becoming unreadable on desktop */
   @media (min-width: 1024px) {

@@ -4,7 +4,7 @@ import imageCompression from 'browser-image-compression';
  * Comprime uma imagem antes de fazer o upload para o Supabase.
  * Isso economiza Storage e Bandwidth.
  */
-export async function compressImage(file: File, maxSizeMB: number = 0.5, maxWidthOrHeight: number = 1920): Promise<File> {
+export async function compressImage(file: File, maxSizeMB: number = 1.2, maxWidthOrHeight: number = 1920): Promise<File> {
     // Se o arquivo for muito pequeno (menos que o alvo), não precisa comprimir
     if (file.size < maxSizeMB * 1024 * 1024) {
         return file;

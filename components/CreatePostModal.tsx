@@ -30,9 +30,8 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selected = Array.from(e.target.files);
-      // Removido o filtro rígido de 5MB para permitir que fotos de celulares modernos 
-      // entrem no fluxo e sejam comprimidas no handleSubmit.
-      setImages(prev => [...prev, ...selected].slice(0, 3));
+      // Limite: 1 foto por post para economizar espaço no Storage
+      setImages(selected.slice(0, 1));
     }
   };
 
@@ -47,8 +46,8 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
       const imageUrls: string[] = [];
       for (const file of images) {
         try {
-          // Compressão aplicada nas imagens da timeline/resenhas
-          const compressedFile = await compressImage(file, 0.4, 1000);
+          // Compressão aplicada (usa o default 1.2MB de imageUtils)
+          const compressedFile = await compressImage(file);
           const url = await uploadFile('posts', compressedFile);
           imageUrls.push(url);
         } catch (uploadErr) {
@@ -230,25 +229,25 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
 
           {!isCreative && (
             <div>
-              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 ml-1 text-center md:text-left">Fotos do seu livro</label>
+              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 ml-1 text-center md:text-left">Foto do seu livro</label>
               <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-24 h-24 border-2 border-dashed border-gray-200 rounded-[1.5rem] flex flex-col items-center justify-center text-gray-400 hover:text-yellow-500 hover:border-yellow-400 transition-all bg-white"
-                  disabled={images.length >= 3}
-                >
-                  <Camera size={28} />
-                  <span className="text-[8px] font-black uppercase mt-2">Adicionar</span>
-                </button>
-                {images.map((img, idx) => (
-                  <div key={idx} className="relative w-24 h-24 rounded-[1.5rem] overflow-hidden border-2 border-white shadow-md">
-                    <img src={URL.createObjectURL(img)} className="w-full h-full object-cover" />
-                    <button type="button" onClick={() => setImages(images.filter((_, i) => i !== idx))} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full"><X size={12} /></button>
+                {images.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-24 h-24 border-2 border-dashed border-gray-200 rounded-[1.5rem] flex flex-col items-center justify-center text-gray-400 hover:text-yellow-500 hover:border-yellow-400 transition-all bg-white"
+                  >
+                    <Camera size={28} />
+                    <span className="text-[8px] font-black uppercase mt-2">Adicionar</span>
+                  </button>
+                ) : (
+                  <div className="relative w-24 h-24 rounded-[1.5rem] overflow-hidden border-2 border-white shadow-md">
+                    <img src={URL.createObjectURL(images[0])} className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => setImages([])} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full"><X size={12} /></button>
                   </div>
-                ))}
+                )}
               </div>
-              <input ref={fileInputRef} type="file" className="hidden" accept="image/*" multiple onChange={handleImageChange} />
+              <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
             </div>
           )}
         </form>

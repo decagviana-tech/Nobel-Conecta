@@ -363,6 +363,19 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
         </div>
       )}
 
+      {/* Botão Flutuante para Criar — sempre visível */}
+      <button
+        onClick={() => {
+          setEditingPost(undefined);
+          setNewPost({ title: '', content: '', type: 'poem', image_url: '' });
+          setShowCreateModal(true);
+        }}
+        className="fixed bottom-24 md:bottom-8 right-5 z-[9999] bg-black text-yellow-400 w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+        aria-label="Nova criação"
+      >
+        <Plus size={26} strokeWidth={2.5} />
+      </button>
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}
