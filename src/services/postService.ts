@@ -51,7 +51,6 @@ export const fetchPostsQuery = (options?: {
     .from('posts')
     .select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)')
     .is('archived_at', null)
-    .is('comments.archived_at', null)
     .order('created_at', { ascending: false })
     .range(from, to);
 

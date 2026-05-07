@@ -114,7 +114,6 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         .select(`*, author:profiles(*), likes:likes(user_id), comments:comments(count)`, { count: 'exact' })
         .eq('type', 'review')
         .is('archived_at', null)
-        .is('comments.archived_at', null)
         .order('created_at', { ascending: false })
         .range(from, to);
 

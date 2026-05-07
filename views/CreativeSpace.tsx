@@ -80,7 +80,6 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
           creative_comments(count)
         `, { count: 'exact' })
         .is('archived_at', null)
-        .is('creative_comments.archived_at', null)
         .order('created_at', { ascending: false })
         .range(from, to);
 

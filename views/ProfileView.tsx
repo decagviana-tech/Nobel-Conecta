@@ -115,7 +115,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     try {
       const [pRes, postsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).is('archived_at', null).is('comments.archived_at', null).order('created_at', { ascending: false })
+        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).is('archived_at', null).order('created_at', { ascending: false })
       ]);
 
       if (pRes.error) {
