@@ -70,9 +70,6 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
       try {
         if (wasLiked) {
           await supabase.from('creative_likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
-
-          // Deduct points when unliking to prevent accumulation
-          await awardPoints(currentProfile.id, 'like', currentProfile, -1);
         } else {
           // Check if already liked to prevent duplicates
           const { data: existingLike } = await supabase
@@ -97,6 +94,11 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
         }
       } catch (err) {
         console.error(err);
+        if (!wasLiked && (err as any)?.code === '23505') {
+          setLiked(true);
+          setLikesCount(prev => Math.max(prev, post.likes_count || 1));
+          return;
+        }
         // Revert on error
         setLiked(wasLiked);
         setLikesCount(prev => wasLiked ? prev + 1 : prev - 1);
