@@ -1,7 +1,6 @@
 
 import { supabase, isSupabaseConfigured } from '../../supabase';
-import { Post, Profile } from '../../types';
-import { awardPoints } from './pointsService';
+import { Post } from '../../types';
 
 /**
  * Centralized post operations. Avoids duplicating Supabase
@@ -9,26 +8,26 @@ import { awardPoints } from './pointsService';
  */
 
 /**
- * Deletes a post and revokes the author's points.
+ * Archives a post and lets the database adjust points consistently.
  * Used by Home, ProfileView, and AdminDashboard.
  */
 export const deletePost = async (
   postId: string,
-  authorUserId: string,
-  pointsAction: 'review' | 'creative' = 'review',
-  pointsToRevoke: number = -10
+  _authorUserId?: string,
+  _pointsAction: 'review' | 'creative' = 'review',
+  _pointsToRevoke: number = -10
 ): Promise<boolean> => {
   if (!isSupabaseConfigured) return true; // Demo mode: caller handles local state
 
   try {
-    const { error } = await supabase.from('posts').delete().eq('id', postId);
+    const { error } = await supabase.rpc('archive_post', {
+      p_post_id: postId,
+      p_reason: 'user_removed'
+    });
     if (error) throw error;
-
-    // Revoke the points that were awarded when the post was created
-    await awardPoints(authorUserId, pointsAction, null, pointsToRevoke);
     return true;
   } catch (err: any) {
-    console.error('Error deleting post:', err);
+    console.error('Error archiving post:', err);
     throw err;
   }
 };
@@ -51,6 +50,8 @@ export const fetchPostsQuery = (options?: {
   let query = supabase
     .from('posts')
     .select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)')
+    .is('archived_at', null)
+    .is('comments.archived_at', null)
     .order('created_at', { ascending: false })
     .range(from, to);
 

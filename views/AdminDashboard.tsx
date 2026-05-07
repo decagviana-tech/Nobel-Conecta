@@ -75,7 +75,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
       const results = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('shop_books').select('*').order('title', { ascending: true }).limit(50),
-        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }).limit(50),
+        supabase.from('posts').select('*, author:profiles(*)').is('archived_at', null).order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*, user:profiles!user_id(*), reward:rewards!reward_id(*)').order('created_at', { ascending: false }).limit(50),
         supabase.from('giveaways').select('*, participants:giveaway_participants(profiles(username))').order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -118,14 +118,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
   const handleDeletePost = async (postId: string) => {
     setConfirmModal({
       isOpen: true,
-      title: "Apagar Publicação?",
-      message: "Tem certeza que deseja remover esta publicação permanentemente?",
+      title: "Arquivar Publicação?",
+      message: "A publicação sairá do app, mas continuará guardada no banco para auditoria ou recuperação.",
       onConfirm: async () => {
         try {
-          await supabase.from('posts').delete().eq('id', postId);
+          const { error } = await supabase.rpc('archive_post', {
+            p_post_id: postId,
+            p_reason: 'admin_moderation'
+          });
+          if (error) throw error;
           fetchData();
         } catch (err) {
-          alert('Erro ao excluir publicação.');
+          alert('Erro ao arquivar publicação.');
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }

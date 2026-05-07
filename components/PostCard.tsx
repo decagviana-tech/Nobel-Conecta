@@ -39,7 +39,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onE
   useEffect(() => {
     if (showComments) {
       if (isSupabaseConfigured) {
-        supabase.from('comments').select('*, author:profiles(*)').eq('post_id', post.id).then(({ data }) => {
+        supabase.from('comments').select('*, author:profiles(*)').eq('post_id', post.id).is('archived_at', null).then(({ data }) => {
           if (data) setComments(data);
         });
       }
@@ -325,8 +325,6 @@ Confira a resenha completa em:
   const handleDeleteComment = async (commentId: string) => {
     if (!currentProfile) return;
 
-    const commentToDelete = comments.find(c => c.id === commentId);
-
     const previousComments = [...comments];
     const updated = comments.filter(c => c.id !== commentId);
     setComments(updated);
@@ -334,27 +332,22 @@ Confira a resenha completa em:
 
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase
-          .from('comments')
-          .delete()
-          .eq('id', commentId);
+        const { error } = await supabase.rpc('archive_comment', {
+          p_comment_id: commentId,
+          p_reason: 'user_removed'
+        });
 
         if (error) {
-          console.error('Erro Supabase ao deletar comentário:', error);
+          console.error('Erro Supabase ao arquivar comentário:', error);
           throw error;
         }
 
-        // Se deletou com sucesso, revogar os pontos do autor do comentário
-        if (commentToDelete) {
-          await awardPoints(commentToDelete.user_id, 'comment', null, -2);
-        }
-
-        console.log('Comentário deletado com sucesso:', commentId);
+        console.log('Comentário arquivado com sucesso:', commentId);
       } catch (err: any) {
-        console.error('Erro ao deletar comentário:', err);
+        console.error('Erro ao arquivar comentário:', err);
         setComments(previousComments);
         setCommentsCount(prev => prev + 1);
-        alert('Erro ao excluir comentário: ' + (err.message || 'Acesso negado'));
+        alert('Erro ao arquivar comentário: ' + (err.message || 'Acesso negado'));
       }
     }
   };

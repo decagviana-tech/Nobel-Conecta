@@ -142,9 +142,11 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         // Ganho de pontos (apenas na criação)
         try {
           const actionType = postType === 'creative' ? 'creative' : postType === 'club_thought' ? 'club_thought' : 'review';
-          await awardPoints(userId, actionType, currentProfile);
+          const pointsConfirmed = await awardPoints(userId, actionType, currentProfile);
           const label = postType === 'creative' ? 'seu texto autoral' : postType === 'club_thought' ? 'sua analise de clube' : 'sua resenha';
-          alert(`Parabéns! Você ganhou +10 pontos Nobel por ${label}.`);
+          if (pointsConfirmed) {
+            alert(`Parabéns! Você ganhou +10 pontos Nobel por ${label}.`);
+          }
         } catch (pointsErr) {
           console.warn('Erro ao atualizar pontos:', pointsErr);
         }

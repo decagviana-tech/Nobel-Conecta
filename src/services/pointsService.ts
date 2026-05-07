@@ -31,6 +31,8 @@ export const awardPoints = async (userId: string, action: PointsAction, currentP
     if (isSupabaseConfigured) {
       // In production, points are awarded by database triggers tied to the real action.
       // This client helper only refreshes the visible profile points after the mutation.
+      const previousPoints = currentProfile?.points;
+      const expectedDelta = amountOverride !== undefined ? amountOverride : POINTS_MAP[action];
       const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
         .select('points')
@@ -47,7 +49,8 @@ export const awardPoints = async (userId: string, action: PointsAction, currentP
         window.dispatchEvent(new CustomEvent('nobel_profile_updated', { detail: { points: newPoints } }));
       }
 
-      return true;
+      if (previousPoints === undefined) return true;
+      return expectedDelta > 0 ? newPoints > previousPoints : newPoints < previousPoints;
     } else {
       // Demo mode: update localStorage
       if (!currentProfile) return;

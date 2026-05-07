@@ -5,7 +5,6 @@ import { Post as CreativePost, Profile } from '../types';
 import { Plus, Loader2, Image as ImageIcon, Sparkles, Heart, MessageSquare, Trash2, Send, ArrowRight } from 'lucide-react';
 import CreativePostCard from '../components/CreativePostCard';
 import ConfirmModal from '../components/ConfirmModal';
-import { awardPoints } from '../src/services/pointsService';
 import { compressImage } from '../src/utils/imageUtils';
 import { useAdmin } from '../src/hooks/useAdmin';
 
@@ -80,6 +79,8 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
           creative_likes(user_id),
           creative_comments(count)
         `, { count: 'exact' })
+        .is('archived_at', null)
+        .is('creative_comments.archived_at', null)
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -178,8 +179,8 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
   const handleDeletePost = (id: string) => {
     setConfirmModal({
       isOpen: true,
-      title: "Excluir Criação?",
-      message: "Tem certeza que deseja apagar esta obra permanentemente do seu portfólio criativo?",
+      title: "Arquivar Criação?",
+      message: "A obra sairá do mural, mas ficará guardada no banco para auditoria ou recuperação pela administração.",
       onConfirm: async () => {
         if (!isSupabaseConfigured) {
           setPosts(posts.filter(p => p.id !== id));
@@ -188,17 +189,15 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
         }
 
         try {
-          const postToDelete = posts.find(p => p.id === id);
-
-          await supabase.from('creative_posts').delete().eq('id', id);
-
-          if (postToDelete) {
-            await awardPoints(postToDelete.user_id, 'creative', null, -10);
-          }
+          const { error } = await supabase.rpc('archive_creative_post', {
+            p_post_id: id,
+            p_reason: 'user_removed'
+          });
+          if (error) throw error;
 
           setPosts(prev => prev.filter(p => p.id !== id));
         } catch (err) {
-          alert('Erro ao excluir.');
+          alert('Erro ao arquivar.');
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }

@@ -27,6 +27,9 @@ CREATE TABLE public.posts (
   type TEXT DEFAULT 'review',
   title TEXT,
   club_id UUID,
+  archived_at TIMESTAMP WITH TIME ZONE,
+  archived_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  archive_reason TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -44,6 +47,9 @@ CREATE TABLE public.comments (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   post_id UUID REFERENCES public.posts (id) ON DELETE CASCADE NOT NULL,
   content TEXT NOT NULL,
+  archived_at TIMESTAMP WITH TIME ZONE,
+  archived_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  archive_reason TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -411,6 +417,9 @@ CREATE TABLE public.creative_posts (
   content TEXT NOT NULL,
   type TEXT DEFAULT 'poem',
   images TEXT[] DEFAULT '{}',
+  archived_at TIMESTAMP WITH TIME ZONE,
+  archived_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  archive_reason TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -426,6 +435,9 @@ CREATE TABLE public.creative_comments (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   post_id UUID REFERENCES public.creative_posts (id) ON DELETE CASCADE NOT NULL,
   content TEXT NOT NULL,
+  archived_at TIMESTAMP WITH TIME ZONE,
+  archived_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  archive_reason TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -680,6 +692,12 @@ BEGIN
   END IF;
 
   IF TG_OP = 'INSERT' THEN
+    IF auth.uid() IS NULL THEN
+      NEW.role := 'user';
+      NEW.points := 0;
+      RETURN NEW;
+    END IF;
+
     IF NEW.id IS DISTINCT FROM auth.uid() AND NOT public.is_admin(auth.uid()) THEN
       RAISE EXCEPTION 'profiles can only be created by the current user or an admin';
     END IF;
@@ -710,6 +728,62 @@ CREATE TRIGGER protect_profile_sensitive_fields
 BEFORE INSERT OR UPDATE ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION public.protect_profile_sensitive_fields();
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_username TEXT;
+  v_full_name TEXT;
+BEGIN
+  v_username := lower(regexp_replace(
+    COALESCE(
+      NEW.raw_user_meta_data->>'username',
+      split_part(NEW.email, '@', 1),
+      'leitor'
+    ),
+    '[^a-z0-9_]',
+    '',
+    'g'
+  ));
+
+  IF length(v_username) < 3 THEN
+    v_username := 'leitor_' || substr(replace(NEW.id::TEXT, '-', ''), 1, 8);
+  END IF;
+
+  WHILE EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE username = v_username
+      AND id <> NEW.id
+  ) LOOP
+    v_username := left(v_username, 12) || '_' || substr(replace(NEW.id::TEXT, '-', ''), 1, 6);
+  END LOOP;
+
+  v_full_name := COALESCE(
+    NULLIF(trim(NEW.raw_user_meta_data->>'full_name'), ''),
+    split_part(NEW.email, '@', 1),
+    'Leitor Nobel'
+  );
+
+  INSERT INTO public.profiles (id, username, full_name, role, points)
+  VALUES (NEW.id, v_username, v_full_name, 'user', 0)
+  ON CONFLICT (id) DO UPDATE
+  SET username = EXCLUDED.username,
+      full_name = EXCLUDED.full_name;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_user();
 
 DROP FUNCTION IF EXISTS public.increment_points(UUID, INTEGER);
 
@@ -1070,3 +1144,265 @@ CREATE POLICY "Users can update their messages safely" ON public.messages
 FOR UPDATE
 USING (auth.uid() = sender_id OR auth.uid() = receiver_id)
 WITH CHECK (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+-- Content archiving
+-- Public delete actions archive content instead of permanently deleting it.
+
+CREATE INDEX IF NOT EXISTS idx_posts_archived_at ON public.posts(archived_at);
+CREATE INDEX IF NOT EXISTS idx_comments_archived_at ON public.comments(archived_at);
+CREATE INDEX IF NOT EXISTS idx_creative_posts_archived_at ON public.creative_posts(archived_at);
+CREATE INDEX IF NOT EXISTS idx_creative_comments_archived_at ON public.creative_comments(archived_at);
+
+CREATE OR REPLACE FUNCTION public.protect_archive_columns()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF COALESCE(current_setting('app.allow_archive_update', true), '') = 'on' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.archived_at IS DISTINCT FROM OLD.archived_at
+    OR NEW.archived_by IS DISTINCT FROM OLD.archived_by
+    OR NEW.archive_reason IS DISTINCT FROM OLD.archive_reason THEN
+    RAISE EXCEPTION 'Use the archive/restore RPC for content visibility changes';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_posts_archive_columns ON public.posts;
+CREATE TRIGGER protect_posts_archive_columns
+BEFORE UPDATE ON public.posts
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_archive_columns();
+
+DROP TRIGGER IF EXISTS protect_comments_archive_columns ON public.comments;
+CREATE TRIGGER protect_comments_archive_columns
+BEFORE UPDATE ON public.comments
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_archive_columns();
+
+DROP TRIGGER IF EXISTS protect_creative_posts_archive_columns ON public.creative_posts;
+CREATE TRIGGER protect_creative_posts_archive_columns
+BEFORE UPDATE ON public.creative_posts
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_archive_columns();
+
+DROP TRIGGER IF EXISTS protect_creative_comments_archive_columns ON public.creative_comments;
+CREATE TRIGGER protect_creative_comments_archive_columns
+BEFORE UPDATE ON public.creative_comments
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_archive_columns();
+
+CREATE OR REPLACE FUNCTION public.archive_post(p_post_id UUID, p_reason TEXT DEFAULT 'user_removed')
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_post public.posts%ROWTYPE;
+  v_actor UUID := auth.uid();
+  v_rows INTEGER;
+BEGIN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT * INTO v_post FROM public.posts WHERE id = p_post_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Post not found';
+  END IF;
+
+  IF v_post.user_id <> v_actor AND NOT public.is_admin(v_actor) THEN
+    RAISE EXCEPTION 'Only the author or an admin can archive this post';
+  END IF;
+
+  IF v_post.archived_at IS NOT NULL THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM set_config('app.allow_archive_update', 'on', true);
+
+  UPDATE public.posts
+  SET archived_at = NOW(),
+      archived_by = v_actor,
+      archive_reason = p_reason
+  WHERE id = p_post_id
+    AND archived_at IS NULL;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN
+    RETURN TRUE;
+  END IF;
+
+  IF COALESCE(v_post.type, 'review') IN ('review', 'club_thought') THEN
+    PERFORM public.apply_points_delta(v_post.user_id, -10, 'Pontos ajustados', 'Conteudo arquivado: -10 pontos.');
+  END IF;
+
+  RETURN TRUE;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.archive_comment(p_comment_id UUID, p_reason TEXT DEFAULT 'user_removed')
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_comment public.comments%ROWTYPE;
+  v_post_owner UUID;
+  v_actor UUID := auth.uid();
+  v_rows INTEGER;
+BEGIN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT * INTO v_comment FROM public.comments WHERE id = p_comment_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Comment not found';
+  END IF;
+
+  SELECT user_id INTO v_post_owner FROM public.posts WHERE id = v_comment.post_id;
+
+  IF v_comment.user_id <> v_actor AND v_post_owner <> v_actor AND NOT public.is_admin(v_actor) THEN
+    RAISE EXCEPTION 'Only the comment author, post author, or an admin can archive this comment';
+  END IF;
+
+  IF v_comment.archived_at IS NOT NULL THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM set_config('app.allow_archive_update', 'on', true);
+
+  UPDATE public.comments
+  SET archived_at = NOW(),
+      archived_by = v_actor,
+      archive_reason = p_reason
+  WHERE id = p_comment_id
+    AND archived_at IS NULL;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM public.apply_points_delta(v_comment.user_id, -2, 'Pontos ajustados', 'Comentario arquivado: -2 pontos.');
+
+  RETURN TRUE;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.archive_creative_post(p_post_id UUID, p_reason TEXT DEFAULT 'user_removed')
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_post public.creative_posts%ROWTYPE;
+  v_actor UUID := auth.uid();
+  v_rows INTEGER;
+BEGIN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT * INTO v_post FROM public.creative_posts WHERE id = p_post_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Creative post not found';
+  END IF;
+
+  IF v_post.user_id <> v_actor AND NOT public.is_admin(v_actor) THEN
+    RAISE EXCEPTION 'Only the author or an admin can archive this creative post';
+  END IF;
+
+  IF v_post.archived_at IS NOT NULL THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM set_config('app.allow_archive_update', 'on', true);
+
+  UPDATE public.creative_posts
+  SET archived_at = NOW(),
+      archived_by = v_actor,
+      archive_reason = p_reason
+  WHERE id = p_post_id
+    AND archived_at IS NULL;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM public.apply_points_delta(v_post.user_id, -10, 'Pontos ajustados', 'Texto arquivado: -10 pontos.');
+
+  RETURN TRUE;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.archive_creative_comment(p_comment_id UUID, p_reason TEXT DEFAULT 'user_removed')
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_comment public.creative_comments%ROWTYPE;
+  v_post_owner UUID;
+  v_actor UUID := auth.uid();
+  v_rows INTEGER;
+BEGIN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT * INTO v_comment FROM public.creative_comments WHERE id = p_comment_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Creative comment not found';
+  END IF;
+
+  SELECT user_id INTO v_post_owner FROM public.creative_posts WHERE id = v_comment.post_id;
+
+  IF v_comment.user_id <> v_actor AND v_post_owner <> v_actor AND NOT public.is_admin(v_actor) THEN
+    RAISE EXCEPTION 'Only the comment author, post author, or an admin can archive this creative comment';
+  END IF;
+
+  IF v_comment.archived_at IS NOT NULL THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM set_config('app.allow_archive_update', 'on', true);
+
+  UPDATE public.creative_comments
+  SET archived_at = NOW(),
+      archived_by = v_actor,
+      archive_reason = p_reason
+  WHERE id = p_comment_id
+    AND archived_at IS NULL;
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN
+    RETURN TRUE;
+  END IF;
+
+  PERFORM public.apply_points_delta(v_comment.user_id, -2, 'Pontos ajustados', 'Comentario arquivado: -2 pontos.');
+
+  RETURN TRUE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.archive_post(UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.archive_comment(UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.archive_creative_post(UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.archive_creative_comment(UUID, TEXT) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.archive_post(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.archive_comment(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.archive_creative_post(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.archive_creative_comment(UUID, TEXT) TO authenticated;

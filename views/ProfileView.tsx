@@ -9,7 +9,6 @@ import PostCard from '../components/PostCard';
 import CreatePostModal from '../components/CreatePostModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { followUser, unfollowUser, isFollowingUser } from '../src/services/socialService';
-import { awardPoints } from '../src/services/pointsService';
 import { deletePost } from '../src/services/postService';
 
 interface ProfileViewProps {
@@ -116,7 +115,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     try {
       const [pRes, postsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).order('created_at', { ascending: false })
+        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).is('archived_at', null).is('comments.archived_at', null).order('created_at', { ascending: false })
       ]);
 
       if (pRes.error) {
@@ -223,8 +222,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
   const handleDeletePost = (postId: string) => {
     setConfirmModal({
       isOpen: true,
-      title: "Excluir Publicação?",
-      message: "Tem certeza que deseja apagar esta publicação da sua estante?",
+      title: "Arquivar Publicação?",
+      message: "A publicação sairá da sua estante, mas ficará guardada no banco para auditoria ou recuperação pela administração.",
       type: 'delete_post',
       onConfirm: async () => {
         if (!isSupabaseConfigured) {
@@ -237,7 +236,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
             }
             setPosts(posts.filter(p => p.id !== postId));
           } catch (err: any) {
-            alert('Erro ao excluir publicação: ' + (err.message || 'Acesso negado'));
+            alert('Erro ao arquivar publicação: ' + (err.message || 'Acesso negado'));
           }
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));

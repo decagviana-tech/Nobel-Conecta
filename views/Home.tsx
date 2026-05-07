@@ -7,7 +7,6 @@ import { Post, Profile } from '../types';
 import PostCard from '../components/PostCard';
 import CreatePostModal from '../components/CreatePostModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { awardPoints } from '../src/services/pointsService';
 import { deletePost } from '../src/services/postService';
 import { isValidAvatar } from '../src/utils/imageUtils';
 
@@ -114,6 +113,8 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         .from('posts')
         .select(`*, author:profiles(*), likes:likes(user_id), comments:comments(count)`, { count: 'exact' })
         .eq('type', 'review')
+        .is('archived_at', null)
+        .is('comments.archived_at', null)
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -425,9 +426,9 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
 
       <ConfirmModal
         isOpen={confirmDelete.isOpen}
-        title="Excluir Publicação?"
-        message="Essa ação é irreversível. A resenha e todos os comentários/curtidas associados serão removidos permanentemente."
-        confirmLabel="Sim, Excluir"
+        title="Arquivar Publicação?"
+        message="A resenha sairá do app, mas continuará guardada no banco para auditoria ou recuperação pela administração."
+        confirmLabel="Sim, Arquivar"
         cancelLabel="Cancelar"
         variant="danger"
         onConfirm={() => {
