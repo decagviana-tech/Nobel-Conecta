@@ -1,6 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../../supabase';
 import { Profile } from '../../types';
-import { createNotification } from './notificationService';
 
 export type PointsAction = 'review' | 'creative' | 'club_thought' | 'comment' | 'like' | 'giveaway' | 'join_club';
 
@@ -12,16 +11,6 @@ const POINTS_MAP: Record<PointsAction, number> = {
   like: 0,
   giveaway: 5,
   join_club: 5
-};
-
-const ACTION_LABELS: Record<PointsAction, string> = {
-  review: 'por sua resenha',
-  creative: 'por seu texto autoral',
-  club_thought: 'por sua analise de clube',
-  comment: 'por comentar',
-  like: 'por curtir',
-  giveaway: 'por participar do sorteio',
-  join_club: 'por entrar no clube'
 };
 
 // In-memory lock to prevent rapid duplicate calls
@@ -40,28 +29,20 @@ export const awardPoints = async (userId: string, action: PointsAction, currentP
 
   try {
     if (isSupabaseConfigured) {
-      const pointsToAdd = amountOverride !== undefined ? amountOverride : POINTS_MAP[action];
+      // In production, points are awarded by database triggers tied to the real action.
+      // This client helper only refreshes the visible profile points after the mutation.
+      const { data: updatedProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('points')
+        .eq('id', userId)
+        .single();
 
-      const { data: updatedProfile, error: updateError } = await supabase.rpc('increment_points', {
-        user_id: userId,
-        amount: pointsToAdd
-      });
-
-      if (updateError) {
-        console.error('RPC increment_points failed:', updateError);
-        throw updateError;
+      if (profileError) {
+        console.error('Profile points refresh failed:', profileError);
+        return false;
       }
 
-      const newPoints = updatedProfile?.[0]?.points;
-      if (pointsToAdd > 0) {
-        await createNotification(
-          userId,
-          'system',
-          'Pontos Nobel!',
-          `Voce ganhou +${pointsToAdd} pontos ${ACTION_LABELS[action]}.`,
-          '/rewards'
-        );
-      }
+      const newPoints = updatedProfile?.points;
       if (newPoints !== undefined) {
         window.dispatchEvent(new CustomEvent('nobel_profile_updated', { detail: { points: newPoints } }));
       }

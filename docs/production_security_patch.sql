@@ -124,7 +124,9 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.increment_points(UUID, INTEGER) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.increment_points(UUID, INTEGER) TO authenticated;
+-- Do not grant this function to authenticated clients.
+-- docs/production_integrity_patch.sql moves production point awards to database triggers.
+REVOKE ALL ON FUNCTION public.increment_points(UUID, INTEGER) FROM authenticated;
 
 DROP FUNCTION IF EXISTS public.redeem_reward(UUID, UUID, INTEGER, TEXT);
 
