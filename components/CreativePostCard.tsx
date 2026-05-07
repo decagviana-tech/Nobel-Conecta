@@ -4,7 +4,7 @@ import { Heart, MessageSquare, Share2, Trash2, Edit2, Quote, User as UserIcon, S
 import { toPng } from 'html-to-image';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { createNotification } from '../src/services/notificationService';
+import { notifyCreativeComment, notifyCreativeLike } from '../src/services/notificationService';
 import { awardPoints } from '../src/services/pointsService';
 import { toProxyBase64, isValidAvatar } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
@@ -89,16 +89,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
             // Ganho de pontos por curtir
             await awardPoints(currentProfile.id, 'like', currentProfile);
 
-            // Notificar o autor do post
-            if (post.user_id !== currentProfile.id) {
-              await createNotification(
-                post.user_id,
-                'like',
-                'Nova curtida!',
-                `@${currentProfile.username} curtiu seu texto: "${post.title || 'Sem título'}".`,
-                `/#/creative?id=${post.id}`
-              );
-            }
+            await notifyCreativeLike(post.id);
           } else {
             // If already liked, revert UI state to liked
             setLiked(true);
@@ -156,15 +147,8 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
         // Ganho de pontos por comentar
         await awardPoints(currentProfile.id, 'comment', currentProfile);
 
-        // Notificar o autor do post
-        if (post.user_id !== currentProfile.id) {
-          await createNotification(
-            post.user_id,
-            'comment',
-            'Novo comentário!',
-            `@${currentProfile.username} comentou no seu texto: "${newComment.substring(0, 30)}${newComment.length > 30 ? '...' : ''}"`,
-            `/#/creative?id=${post.id}`
-          );
+        if (insertedData?.id) {
+          await notifyCreativeComment(insertedData.id);
         }
         setNewComment('');
       } catch (err) {

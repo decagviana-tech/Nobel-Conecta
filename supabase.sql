@@ -10,7 +10,7 @@ CREATE TABLE public.profiles (
   bio TEXT,
   favorite_genres TEXT[] DEFAULT '{}',
   reading_now TEXT,
-  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'superadmin')),
   points INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -86,8 +86,8 @@ ALTER TABLE public.giveaways ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Giveaways are viewable by everyone" ON public.giveaways FOR SELECT USING (true);
 CREATE POLICY "Admins can manage giveaways" ON public.giveaways FOR ALL 
-USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
-WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')));
 
 -- 8. Giveaway Participants table
 CREATE TABLE public.giveaway_participants (
@@ -129,23 +129,23 @@ CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR 
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Admins can update any profile" ON public.profiles FOR UPDATE USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
 );
 CREATE POLICY "Admins can delete any profile" ON public.profiles FOR DELETE USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
 );
 
 CREATE POLICY "Posts are viewable by everyone" ON public.posts FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own posts" ON public.posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own posts" ON public.posts FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Admins can delete posts" ON public.posts FOR DELETE USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') OR auth.uid() = user_id
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')) OR auth.uid() = user_id
 );
 
 CREATE POLICY "Book clubs are viewable by everyone" ON public.book_clubs FOR SELECT USING (true);
 CREATE POLICY "Users can create book clubs" ON public.book_clubs FOR INSERT WITH CHECK (auth.uid() = admin_id);
 CREATE POLICY "Admins and organizers can delete book clubs" ON public.book_clubs FOR DELETE USING (
-  auth.uid() = admin_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  auth.uid() = admin_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
 );
 
 CREATE POLICY "Users can view their own messages" ON public.messages FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
@@ -163,7 +163,9 @@ CREATE POLICY "Users can delete their own comments" ON public.comments FOR DELET
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own notifications" ON public.notifications FOR DELETE USING (auth.uid() = user_id);
-CREATE POLICY "Anyone can insert notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Admins and users can insert safe notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (
+  user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
+);
 
 -- Enable Realtime for notifications
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
@@ -203,7 +205,7 @@ CREATE POLICY "Creative posts are viewable by everyone" ON public.creative_posts
 CREATE POLICY "Users can insert their own creative posts" ON public.creative_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own creative posts" ON public.creative_posts FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Admins or owners can delete creative posts" ON public.creative_posts FOR DELETE USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') OR auth.uid() = user_id
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')) OR auth.uid() = user_id
 );
 
 CREATE POLICY "Creative likes are viewable by everyone" ON public.creative_likes FOR SELECT USING (true);
@@ -248,8 +250,8 @@ ALTER TABLE public.rewards ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Rewards are viewable by everyone" ON public.rewards FOR SELECT USING (true);
 CREATE POLICY "Admins can manage rewards" ON public.rewards FOR ALL 
-USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
-WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')));
 
 -- 11. Redemptions table
 CREATE TABLE public.redemptions (
@@ -278,13 +280,13 @@ ALTER TABLE public.shop_books ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own redemptions" ON public.redemptions FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create redemptions" ON public.redemptions FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Admins can update redemptions" ON public.redemptions FOR UPDATE USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
 );
 
 CREATE POLICY "Shop books are viewable by everyone" ON public.shop_books FOR SELECT USING (true);
 CREATE POLICY "Admins can manage shop books" ON public.shop_books FOR ALL 
-USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
-WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')));
 
 -- Storage setup (Requires manual bucket creation: 'avatars', 'posts', 'rewards', 'giveaways')
 -- You can run this in the SQL Editor to create buckets:
@@ -312,3 +314,169 @@ WHERE avatar_url ILIKE '%1494790108377%'
    OR avatar_url ILIKE '%1535713875002%' 
    OR avatar_url ILIKE '%1438761681033%';
 */
+
+-- Production security hardening
+-- For existing production databases, prefer running docs/production_security_patch.sql.
+-- This block keeps new database setups aligned with the production patch.
+
+CREATE OR REPLACE FUNCTION public.is_admin(p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE SQL
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = p_user_id
+      AND role IN ('admin', 'superadmin')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.protect_profile_sensitive_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF current_setting('app.bypass_profile_guard', true) = 'on' THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.id IS DISTINCT FROM auth.uid() AND NOT public.is_admin(auth.uid()) THEN
+      RAISE EXCEPTION 'profiles can only be created by the current user or an admin';
+    END IF;
+
+    IF NOT public.is_admin(auth.uid()) THEN
+      NEW.role := 'user';
+      NEW.points := 0;
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF auth.uid() = OLD.id AND NOT public.is_admin(auth.uid()) THEN
+      IF NEW.role IS DISTINCT FROM OLD.role OR NEW.points IS DISTINCT FROM OLD.points THEN
+        RAISE EXCEPTION 'role and points cannot be changed from the client';
+      END IF;
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER protect_profile_sensitive_fields
+BEFORE INSERT OR UPDATE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_profile_sensitive_fields();
+
+DROP FUNCTION IF EXISTS public.increment_points(UUID, INTEGER);
+
+CREATE FUNCTION public.increment_points(user_id UUID, amount INTEGER)
+RETURNS TABLE(points INTEGER)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'authentication required';
+  END IF;
+
+  IF user_id IS DISTINCT FROM auth.uid() AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'cannot change another user points';
+  END IF;
+
+  IF amount NOT IN (-10, -5, -2, 0, 2, 5, 10) THEN
+    RAISE EXCEPTION 'invalid points amount';
+  END IF;
+
+  PERFORM set_config('app.bypass_profile_guard', 'on', true);
+
+  RETURN QUERY
+  UPDATE public.profiles
+  SET points = GREATEST(0, COALESCE(public.profiles.points, 0) + amount)
+  WHERE id = user_id
+  RETURNING public.profiles.points;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.redeem_reward(UUID, UUID, INTEGER, TEXT);
+
+CREATE FUNCTION public.redeem_reward(
+  p_reward_id UUID,
+  p_user_id UUID,
+  p_points_req INTEGER,
+  p_redemption_code TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_reward public.rewards%ROWTYPE;
+  v_profile_points INTEGER;
+  v_redemption_id UUID;
+BEGIN
+  IF auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'users can only redeem rewards for themselves';
+  END IF;
+
+  SELECT *
+  INTO v_reward
+  FROM public.rewards
+  WHERE id = p_reward_id
+  FOR UPDATE;
+
+  IF NOT FOUND OR NOT COALESCE(v_reward.is_active, false) THEN
+    RAISE EXCEPTION 'reward is not available';
+  END IF;
+
+  IF v_reward.points_required IS DISTINCT FROM p_points_req THEN
+    RAISE EXCEPTION 'reward points mismatch';
+  END IF;
+
+  IF v_reward.type IN ('gift', 'book') AND COALESCE(v_reward.stock, 0) <= 0 THEN
+    RAISE EXCEPTION 'reward is out of stock';
+  END IF;
+
+  SELECT COALESCE(points, 0)
+  INTO v_profile_points
+  FROM public.profiles
+  WHERE id = p_user_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'profile not found';
+  END IF;
+
+  IF v_profile_points < v_reward.points_required THEN
+    RAISE EXCEPTION 'insufficient points';
+  END IF;
+
+  PERFORM set_config('app.bypass_profile_guard', 'on', true);
+
+  UPDATE public.profiles
+  SET points = v_profile_points - v_reward.points_required
+  WHERE id = p_user_id;
+
+  IF v_reward.type IN ('gift', 'book') THEN
+    UPDATE public.rewards
+    SET stock = COALESCE(stock, 0) - 1
+    WHERE id = p_reward_id;
+  END IF;
+
+  INSERT INTO public.redemptions (user_id, reward_id, status, redemption_code)
+  VALUES (p_user_id, p_reward_id, 'pending', p_redemption_code)
+  RETURNING id INTO v_redemption_id;
+
+  RETURN v_redemption_id;
+END;
+$$;

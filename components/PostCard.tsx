@@ -4,7 +4,7 @@ import { Star, MessageCircle, Heart, Trash2, Edit2, User as UserIcon, Send, Chev
 import { toPng } from 'html-to-image';
 import { Post, Profile, Comment } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { createNotification } from '../src/services/notificationService';
+import { notifyPostComment, notifyPostLike } from '../src/services/notificationService';
 import { awardPoints } from '../src/services/pointsService';
 import { toProxyBase64, isValidAvatar } from '../src/utils/imageUtils';
 import { formatDistanceToNow } from 'date-fns';
@@ -234,16 +234,7 @@ Confira a resenha completa em:
             // Ganho de pontos por curtir
             await awardPoints(currentProfile.id, 'like', currentProfile);
 
-            // Notificar o autor do post
-            if (post.user_id !== currentProfile.id) {
-              await createNotification(
-                post.user_id,
-                'like',
-                'Nova curtida!',
-                `@${currentProfile.username} curtiu sua resenha de "${post.book_title}".`,
-                `/?search=${encodeURIComponent(post.book_title || '')}`
-              );
-            }
+            await notifyPostLike(post.id);
           } else {
             // If already liked, revert UI state to liked
             setLiked(true);
@@ -301,15 +292,8 @@ Confira a resenha completa em:
         // Ganho de pontos por comentar
         await awardPoints(currentProfile.id, 'comment', currentProfile);
 
-        // Notificar o autor do post
-        if (post.user_id !== currentProfile.id) {
-          await createNotification(
-            post.user_id,
-            'comment',
-            'Novo comentário!',
-            `@${currentProfile.username} comentou na sua resenha: "${newComment.substring(0, 30)}${newComment.length > 30 ? '...' : ''}"`,
-            `/?search=${encodeURIComponent(post.book_title || '')}`
-          );
+        if (insertedData?.id) {
+          await notifyPostComment(insertedData.id);
         }
         setNewComment('');
       } catch (err) {

@@ -1,9 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  'https://quelnhdikndxgkaptdfm.supabase.co',
-  'sb_publishable_JqBQYpyG_7Cui9YsrR3qBA_-vQviETm'
-);
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY antes de rodar este diagnostico.');
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function check() {
   console.log('=== VERIFICANDO BANCO NOBEL CONECTA ===\n');

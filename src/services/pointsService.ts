@@ -1,4 +1,3 @@
-
 import { supabase, isSupabaseConfigured } from '../../supabase';
 import { Profile } from '../../types';
 import { createNotification } from './notificationService';
@@ -18,7 +17,7 @@ const POINTS_MAP: Record<PointsAction, number> = {
 const ACTION_LABELS: Record<PointsAction, string> = {
   review: 'por sua resenha',
   creative: 'por seu texto autoral',
-  club_thought: 'por sua análise de clube',
+  club_thought: 'por sua analise de clube',
   comment: 'por comentar',
   like: 'por curtir',
   giveaway: 'por participar do sorteio',
@@ -41,8 +40,6 @@ export const awardPoints = async (userId: string, action: PointsAction, currentP
 
   try {
     if (isSupabaseConfigured) {
-      // Use PostgreSQL increment to ensure atomicity and avoid race conditions
-      // This is much safer than fetching and then updating
       const pointsToAdd = amountOverride !== undefined ? amountOverride : POINTS_MAP[action];
 
       const { data: updatedProfile, error: updateError } = await supabase.rpc('increment_points', {
@@ -50,53 +47,23 @@ export const awardPoints = async (userId: string, action: PointsAction, currentP
         amount: pointsToAdd
       });
 
-      // Fallback if RPC is not available (though RPC is recommended)
       if (updateError) {
-        console.warn('RPC increment_points failed, falling back to manual update:', updateError);
-        const { data: profileData, error: fetchError } = await supabase
-          .from('profiles')
-          .select('points')
-          .eq('id', userId)
-          .single();
+        console.error('RPC increment_points failed:', updateError);
+        throw updateError;
+      }
 
-        if (fetchError) throw fetchError;
-
-        const currentPoints = profileData?.points || 0;
-        const newPoints = Math.max(0, currentPoints + pointsToAdd);
-
-        const { error: manualUpdateError } = await supabase
-          .from('profiles')
-          .update({ points: newPoints })
-          .eq('id', userId);
-
-        if (manualUpdateError) throw manualUpdateError;
-
-        // Use manual points for notification
-        if (pointsToAdd > 0) {
-          await createNotification(
-            userId,
-            'system',
-            '✨ Pontos Nobel!',
-            `Você ganhou +${pointsToAdd} pontos ${ACTION_LABELS[action]}. Seu novo saldo é ${newPoints} pts.`,
-            '/rewards'
-          );
-        }
+      const newPoints = updatedProfile?.[0]?.points;
+      if (pointsToAdd > 0) {
+        await createNotification(
+          userId,
+          'system',
+          'Pontos Nobel!',
+          `Voce ganhou +${pointsToAdd} pontos ${ACTION_LABELS[action]}.`,
+          '/rewards'
+        );
+      }
+      if (newPoints !== undefined) {
         window.dispatchEvent(new CustomEvent('nobel_profile_updated', { detail: { points: newPoints } }));
-      } else {
-        // RPC successful
-        const newPoints = updatedProfile?.[0]?.points;
-        if (pointsToAdd > 0) {
-          await createNotification(
-            userId,
-            'system',
-            '✨ Pontos Nobel!',
-            `Você ganhou +${pointsToAdd} pontos ${ACTION_LABELS[action]}.`,
-            '/rewards'
-          );
-        }
-        if (newPoints !== undefined) {
-          window.dispatchEvent(new CustomEvent('nobel_profile_updated', { detail: { points: newPoints } }));
-        }
       }
 
       return true;

@@ -141,7 +141,7 @@ const App: React.FC = () => {
             id: user.id,
             full_name: metadata?.full_name || user.email?.split('@')[0] || 'Novo Leitor',
             username: metadata?.username || user.email?.split('@')[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'leitor' + Math.random().toString(36).substr(2, 4),
-            role: (user.email === 'nobel.petropolis@gmail.com' || user.email === 'decagviana@gmail.com' || user.email === 'nobelpetro@gmail.com') ? 'admin' : 'user',
+            role: 'user',
             points: 0
           };
 

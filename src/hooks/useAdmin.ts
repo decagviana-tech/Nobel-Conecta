@@ -12,8 +12,6 @@ export const useAdmin = (profile: Profile | null): boolean => {
     if (!profile) return false;
     return (
         profile.role === 'admin' ||
-        profile.role === 'superadmin' ||
-        profile.username === 'nobel_oficial' ||
-        profile.username === 'nobelpetro'
+        profile.role === 'superadmin'
     );
 };
