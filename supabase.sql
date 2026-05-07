@@ -410,6 +410,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.delete_book_club(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.delete_book_club(UUID) TO authenticated;
+NOTIFY pgrst, 'reload schema';
 
 -- Storage setup (Requires manual bucket creation: 'avatars', 'posts', 'rewards', 'giveaways')
 -- You can run this in the SQL Editor to create buckets:
