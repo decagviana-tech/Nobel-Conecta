@@ -71,7 +71,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
 
       // Fetch club details
       const { data: clubData, error: clubError } = await supabase
-        .from('clubs')
+        .from('book_clubs')
         .select('*')
         .eq('id', id)
         .single();
@@ -96,14 +96,19 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
         .select(`
           *,
           author:profiles(*),
-          likes(count),
+          likes(user_id),
           comments(count)
         `)
         .eq('club_id', id)
         .order('created_at', { ascending: false });
 
       if (postError) throw postError;
-      setPosts(postData || []);
+      setPosts((postData || []).map((p: any) => ({
+        ...p,
+        likes_count: p.likes?.length || 0,
+        comments_count: p.comments?.[0]?.count || 0,
+        user_has_liked: profile?.id ? p.likes?.some((l: any) => l.user_id === profile.id) : false
+      })));
 
     } catch (err) {
       console.error('Error fetching club data:', err);
@@ -164,7 +169,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
       onConfirm: async () => {
         try {
           const { error } = await supabase
-            .from('clubs')
+            .from('book_clubs')
             .delete()
             .eq('id', id);
 
@@ -388,7 +393,8 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
             setEditingPost(null);
             fetchClubData();
           }}
-          postType="review"
+          postType="club_thought"
+          clubId={id}
           editingPost={editingPost || undefined}
         />
       )}

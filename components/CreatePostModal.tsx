@@ -11,11 +11,12 @@ interface CreatePostModalProps {
   currentProfile: Profile;
   onClose: () => void;
   onSuccess: (newPost?: Post) => void;
-  postType?: 'review' | 'creative';
+  postType?: 'review' | 'creative' | 'club_thought';
+  clubId?: string;
   editingPost?: Post;
 }
 
-const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfile, onClose, onSuccess, postType = 'review', editingPost }) => {
+const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfile, onClose, onSuccess, postType = 'review', clubId, editingPost }) => {
   const [loading, setLoading] = useState(false);
   const [bookTitle, setBookTitle] = useState(editingPost?.book_title || '');
   const [bookAuthor, setBookAuthor] = useState(editingPost?.book_author || '');
@@ -60,6 +61,10 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         content: content,
         type: postType
       };
+
+      if (clubId) {
+        postData.club_id = clubId;
+      }
 
       if (!editingPost) {
         postData.created_at = new Date().toISOString();
@@ -129,9 +134,9 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
 
         // Ganho de pontos (apenas na criação)
         try {
-          const actionType = postType === 'creative' ? 'creative' : 'review';
+          const actionType = postType === 'creative' ? 'creative' : postType === 'club_thought' ? 'club_thought' : 'review';
           await awardPoints(userId, actionType, currentProfile);
-          const label = postType === 'creative' ? 'seu texto autoral' : 'sua resenha';
+          const label = postType === 'creative' ? 'seu texto autoral' : postType === 'club_thought' ? 'sua analise de clube' : 'sua resenha';
           alert(`Parabéns! Você ganhou +10 pontos Nobel por ${label}.`);
         } catch (pointsErr) {
           console.warn('Erro ao atualizar pontos:', pointsErr);

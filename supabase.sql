@@ -144,8 +144,30 @@ CREATE POLICY "Admins can delete posts" ON public.posts FOR DELETE USING (
 
 CREATE POLICY "Book clubs are viewable by everyone" ON public.book_clubs FOR SELECT USING (true);
 CREATE POLICY "Users can create book clubs" ON public.book_clubs FOR INSERT WITH CHECK (auth.uid() = admin_id);
+CREATE POLICY "Admins and organizers can update book clubs" ON public.book_clubs FOR UPDATE USING (
+  auth.uid() = admin_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
+)
+WITH CHECK (
+  auth.uid() = admin_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
+);
 CREATE POLICY "Admins and organizers can delete book clubs" ON public.book_clubs FOR DELETE USING (
   auth.uid() = admin_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
+);
+
+CREATE TABLE public.club_members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  club_id UUID REFERENCES public.book_clubs(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(club_id, user_id)
+);
+
+ALTER TABLE public.club_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Club members are viewable by everyone" ON public.club_members FOR SELECT USING (true);
+CREATE POLICY "Users can join clubs" ON public.club_members FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can leave clubs" ON public.club_members FOR DELETE USING (
+  auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
 );
 
 CREATE POLICY "Users can view their own messages" ON public.messages FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
@@ -287,6 +309,69 @@ CREATE POLICY "Shop books are viewable by everyone" ON public.shop_books FOR SEL
 CREATE POLICY "Admins can manage shop books" ON public.shop_books FOR ALL 
 USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')))
 WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')));
+
+CREATE TABLE public.events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  date TIMESTAMP WITH TIME ZONE NOT NULL,
+  time TEXT NOT NULL,
+  location TEXT NOT NULL,
+  image_url TEXT,
+  type TEXT DEFAULT 'upcoming' CHECK (type IN ('upcoming', 'past')),
+  max_participants INTEGER DEFAULT 20,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE public.event_participants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_id UUID REFERENCES public.events(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(event_id, user_id)
+);
+
+CREATE TABLE public.event_likes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_id UUID REFERENCES public.events(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(event_id, user_id)
+);
+
+CREATE TABLE public.event_comments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_id UUID REFERENCES public.events(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Events are viewable by everyone" ON public.events FOR SELECT USING (true);
+CREATE POLICY "Admins can manage events" ON public.events FOR ALL
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin')));
+
+CREATE POLICY "Event participants are viewable by everyone" ON public.event_participants FOR SELECT USING (true);
+CREATE POLICY "Users can join events" ON public.event_participants FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can leave events" ON public.event_participants FOR DELETE USING (
+  auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
+);
+
+CREATE POLICY "Event likes are viewable by everyone" ON public.event_likes FOR SELECT USING (true);
+CREATE POLICY "Users can like events" ON public.event_likes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can unlike events" ON public.event_likes FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Event comments are viewable by everyone" ON public.event_comments FOR SELECT USING (true);
+CREATE POLICY "Users can comment on events" ON public.event_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users admins can delete event comments" ON public.event_comments FOR DELETE USING (
+  auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'superadmin'))
+);
 
 -- Storage setup (Requires manual bucket creation: 'avatars', 'posts', 'rewards', 'giveaways')
 -- You can run this in the SQL Editor to create buckets:
@@ -540,7 +625,12 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF TG_OP = 'DELETE' AND COALESCE(OLD.type, 'review') = 'review' THEN
+  IF TG_OP = 'INSERT' AND NEW.type = 'club_thought' THEN
+    PERFORM public.apply_points_delta(NEW.user_id, 10, 'Pontos Nobel!', 'Voce ganhou +10 pontos por sua analise de clube.');
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' AND COALESCE(OLD.type, 'review') IN ('review', 'club_thought') THEN
     PERFORM public.apply_points_delta(OLD.user_id, -10);
     RETURN OLD;
   END IF;
