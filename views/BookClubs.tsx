@@ -164,19 +164,19 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Removido window.confirm para evitar travamentos
-    const confirmed = true;
+    const previousClubs = clubs;
+    setClubs(prev => prev.filter(c => c.id !== id));
 
     if (!isSupabaseConfigured) {
-      const updated = clubs.filter(c => c.id !== id);
-      setClubs(updated);
+      const updated = previousClubs.filter(c => c.id !== id);
       localStorage.setItem(CLUBS_STORAGE_KEY, JSON.stringify(updated));
     } else {
       try {
         const { error } = await supabase.from('book_clubs').delete().eq('id', id);
         if (error) throw error;
-        fetchClubs();
+        await fetchClubs();
       } catch (err) {
+        setClubs(previousClubs);
         alert('Erro ao excluir clube.');
       }
     }

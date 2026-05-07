@@ -26,7 +26,9 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
   const [images, setImages] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isCreative = postType === 'creative';
+  const isClubThought = postType === 'club_thought';
+  const isCreative = postType === 'creative' || isClubThought;
+  const isFreeText = isCreative;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -39,7 +41,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content) return;
-    if (!isCreative && (!bookTitle || !bookAuthor)) return;
+    if (!isFreeText && (!bookTitle || !bookAuthor)) return;
 
     setLoading(true);
 
@@ -84,6 +86,11 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         postData.book_title = bookTitle;
         postData.book_author = bookAuthor;
         postData.rating = rating;
+      }
+
+      if (isClubThought) {
+        postData.book_title = creativeTitle || 'Discussão do clube';
+        postData.book_author = 'Clube literário';
       }
 
       if (!isSupabaseConfigured) {
@@ -162,7 +169,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
             </div>
             <div>
               <h2 className="text-2xl font-black text-gray-900 font-serif">
-                {isCreative ? (editingPost ? 'Editar Mural' : 'Mural Literário') : (editingPost ? 'Editar Resenha' : 'Nova Resenha')}
+                {isClubThought ? (editingPost ? 'Editar Discussão' : 'Nova Discussão') : isCreative ? (editingPost ? 'Editar Mural' : 'Mural Literário') : (editingPost ? 'Editar Resenha' : 'Nova Resenha')}
               </h2>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Incentive a leitura</p>
             </div>
@@ -175,10 +182,10 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 md:p-10 space-y-8 bg-white">
           {isCreative ? (
             <div>
-              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Título da sua obra</label>
+              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">{isClubThought ? 'Título da discussão' : 'Título da sua obra'}</label>
               <input
                 className="w-full px-6 py-5 bg-white text-black border border-gray-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-black transition-all font-serif italic text-xl placeholder:text-gray-300 focus:bg-white"
-                placeholder="Ex: Noites na Rua 16..."
+                placeholder={isClubThought ? 'Ex: O que essa leitura provocou em você?' : 'Ex: Noites na Rua 16...'}
                 value={creativeTitle}
                 onChange={(e) => setCreativeTitle(e.target.value)}
               />
@@ -220,13 +227,13 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
 
           <div>
             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">
-              {isCreative ? 'Seu Texto' : 'Sua Resenha'}
+              {isClubThought ? 'Sua Discussão' : isCreative ? 'Seu Texto' : 'Sua Resenha'}
             </label>
             <textarea
               required
               rows={isCreative ? 10 : 5}
               className="w-full px-6 py-5 bg-white text-black border border-gray-200 rounded-[1.5rem] outline-none focus:ring-2 focus:ring-yellow-400 resize-none font-medium leading-relaxed placeholder:text-gray-300 transition-all focus:bg-white"
-              placeholder={isCreative ? "Inspire-se..." : "O que você achou desta obra?"}
+              placeholder={isClubThought ? 'Puxe uma conversa para o clube...' : isCreative ? 'Inspire-se...' : 'O que você achou desta obra?'}
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
@@ -263,7 +270,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
             disabled={loading}
             className={`flex-1 py-6 rounded-[1.5rem] shadow-xl flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-xs font-black transition-all hover:scale-[1.02] active:scale-95 ${isCreative ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'}`}
           >
-            {loading ? <Loader2 className="animate-spin" /> : (isCreative ? (editingPost ? 'Salvar Edição' : 'Publicar no Mural') : (editingPost ? 'Salvar Edição' : 'Publicar Resenha'))}
+            {loading ? <Loader2 className="animate-spin" /> : (isClubThought ? (editingPost ? 'Salvar Discussão' : 'Iniciar Discussão') : isCreative ? (editingPost ? 'Salvar Edição' : 'Publicar no Mural') : (editingPost ? 'Salvar Edição' : 'Publicar Resenha'))}
           </button>
         </div>
       </div>
