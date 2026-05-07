@@ -15,10 +15,35 @@ const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const normalizeUsername = (value: string) =>
+    value.trim().toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const email = formData.email.trim().toLowerCase();
+    const fullName = formData.fullName.trim();
+    const username = normalizeUsername(formData.username);
+
+    if (!fullName) {
+      setError('Informe seu nome.');
+      setLoading(false);
+      return;
+    }
+
+    if (username.length < 3 || username.length > 20) {
+      setError('O @user deve ter entre 3 e 20 caracteres, usando letras, números ou _.');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      setLoading(false);
+      return;
+    }
 
     // MODO DE DEMONSTRAÇÃO
     if (!isSupabaseConfigured) {
@@ -26,8 +51,8 @@ const Register: React.FC = () => {
         // Simula a criação de um perfil no localStorage para que o login funcione
         const demoUser = {
           id: 'demo-user-' + Math.random().toString(36).substr(2, 4),
-          username: formData.username.toLowerCase().replace(/\s/g, ''),
-          full_name: formData.fullName,
+          username,
+          full_name: fullName,
           role: 'user',
           favorite_genres: ['Explorando'],
           reading_now: 'Novo Leitor Nobel'
@@ -43,13 +68,26 @@ const Register: React.FC = () => {
 
     // MODO PRODUÇÃO (SUPABASE)
     try {
+      const { data: existingUsername, error: usernameError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (usernameError) throw usernameError;
+      if (existingUsername) {
+        setError('Este @user já está em uso. Escolha outro nome de usuário.');
+        setLoading(false);
+        return;
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
+        email,
         password: formData.password,
         options: {
           data: {
-            full_name: formData.fullName,
-            username: formData.username.toLowerCase().replace(/\s/g, ''),
+            full_name: fullName,
+            username,
           }
         }
       });
@@ -63,8 +101,8 @@ const Register: React.FC = () => {
             .from('profiles')
             .upsert({
               id: authData.user.id,
-              full_name: formData.fullName,
-              username: formData.username.toLowerCase().replace(/\s/g, ''),
+              full_name: fullName,
+              username,
               role: 'user'
             }, { onConflict: 'id' });
         } catch (pErr) {
@@ -132,10 +170,12 @@ const Register: React.FC = () => {
               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">@User</label>
               <input 
                 required
+                minLength={3}
+                maxLength={20}
                 className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
                 placeholder="leitor1"
                 value={formData.username}
-                onChange={e => setFormData({...formData, username: e.target.value})}
+                onChange={e => setFormData({...formData, username: normalizeUsername(e.target.value)})}
               />
             </div>
           </div>

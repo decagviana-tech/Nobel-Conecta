@@ -46,7 +46,10 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
     }
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password
+      });
 
       if (error) {
         setError(error.message || 'E-mail ou senha incorretos.');
@@ -99,7 +102,7 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
     }
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail.trim().toLowerCase(), {
         redirectTo: window.location.origin + window.location.pathname + '#/reset-password',
       });
 
