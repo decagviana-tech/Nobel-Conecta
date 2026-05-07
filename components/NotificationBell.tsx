@@ -17,9 +17,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dueRemindersChecked = useRef(false);
 
   useEffect(() => {
     if (profile) {
+      sendDueGiveawayReminders();
       fetchNotifications();
 
       // Request permission only if not already determined
@@ -73,6 +75,18 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
       if (permission === 'granted') {
         console.log('Permissão de notificação concedida!');
       }
+    }
+  };
+
+  const sendDueGiveawayReminders = async () => {
+    if (!isSupabaseConfigured || dueRemindersChecked.current) return;
+
+    dueRemindersChecked.current = true;
+    try {
+      await supabase.rpc('send_due_giveaway_reminders');
+      fetchNotifications();
+    } catch (err) {
+      console.warn('Erro ao verificar lembretes de sorteio:', err);
     }
   };
 

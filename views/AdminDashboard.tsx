@@ -19,6 +19,7 @@ import {
   Search as SearchIcon,
   Crown,
   Plus,
+  RefreshCw,
   User as UserIcon
 } from 'lucide-react';
 import { useAdmin } from '../src/hooks/useAdmin';
@@ -217,34 +218,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
 
   const handleRunRaffle = async (giveawayId: string) => {
     try {
-      const { data: participants, error: pError } = await supabase
-        .from('giveaway_participants')
-        .select('user_id')
-        .eq('giveaway_id', giveawayId);
-
-      if (pError) throw pError;
-      if (!participants || participants.length === 0) {
-        alert('Não há participantes para este sorteio.');
-        return;
-      }
-
-      const winnerIndex = Math.floor(Math.random() * participants.length);
-      const winnerId = participants[winnerIndex].user_id;
-
-      const { error: uError } = await supabase
-        .from('giveaways')
-        .update({
-          winner_id: winnerId,
-          is_active: false
-        })
-        .eq('id', giveawayId);
-
-      if (uError) throw uError;
+      const { data, error } = await supabase.rpc('run_giveaway_raffle', { p_giveaway_id: giveawayId });
+      if (error) throw error;
+      const winner = Array.isArray(data) ? data[0] : data;
 
       fetchData();
-      alert('Sorteio realizado com sucesso! O vencedor foi selecionado.');
-    } catch (err) {
-      alert('Erro ao realizar sorteio.');
+      alert(`Sorteio realizado com sucesso! Vencedor(a): ${winner?.winner_full_name || winner?.winner_username || 'selecionado'}.`);
+    } catch (err: any) {
+      alert(`Erro ao realizar sorteio: ${err.message || 'tente novamente'}`);
+    }
+  };
+
+  const handleReopenGiveaway = async (giveawayId: string) => {
+    const defaultDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const endDate = window.prompt('Nova data do sorteio (AAAA-MM-DD):', defaultDate);
+    if (!endDate) return;
+
+    try {
+      const { error } = await supabase.rpc('reopen_giveaway_round', {
+        p_giveaway_id: giveawayId,
+        p_end_date: endDate
+      });
+
+      if (error) throw error;
+
+      fetchData();
+      alert('Nova rodada criada com sucesso!');
+    } catch (err: any) {
+      alert(`Erro ao reabrir sorteio: ${err.message || 'tente novamente'}`);
     }
   };
 
@@ -738,7 +739,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                     </div>
                   </div>
 
-                  {g.is_active ? (
+                  {g.is_active && !g.winner_id ? (
                     <button
                       onClick={() => handleRunRaffle(g.id)}
                       className="w-full bg-black text-yellow-400 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
@@ -746,14 +747,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                       <Ticket size={16} /> Realizar Sorteio Agora
                     </button>
                   ) : (
-                    <div className="bg-yellow-50 p-4 rounded-2xl border border-yellow-100 flex items-center gap-3">
-                      <Crown className="text-yellow-600" size={20} />
-                      <div>
-                        <p className="text-[8px] font-black uppercase text-yellow-600">Vencedor:</p>
-                        <p className="font-black text-gray-900">
-                          {g.winner_id ? (users.find(u => u.id === g.winner_id)?.username || 'Vencedor Sorteado') : '---'}
-                        </p>
+                    <div className="space-y-3">
+                      <div className="bg-yellow-50 p-4 rounded-2xl border border-yellow-100 flex items-center gap-3">
+                        <Crown className="text-yellow-600" size={20} />
+                        <div>
+                          <p className="text-[8px] font-black uppercase text-yellow-600">Vencedor:</p>
+                          <p className="font-black text-gray-900">
+                            {g.winner_id ? (users.find(u => u.id === g.winner_id)?.username || 'Vencedor Sorteado') : '---'}
+                          </p>
+                        </div>
                       </div>
+                      {g.winner_id && (
+                        <button
+                          onClick={() => handleReopenGiveaway(g.id)}
+                          className="w-full bg-white text-yellow-700 border border-yellow-200 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-yellow-50 transition-all flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={16} /> Reabrir Nova Rodada
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

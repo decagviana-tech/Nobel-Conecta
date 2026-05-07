@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon, Edit2, X } from 'lucide-react';
+import { Gift, Calendar, Users, Trophy, Loader2, Plus, Trash2, CheckCircle2, Camera, Image as ImageIcon, Edit2, RefreshCw, X } from 'lucide-react';
 import { supabase, uploadFile, isSupabaseConfigured } from '../supabase';
 import { awardPoints } from '../src/services/pointsService';
 import { Profile, Giveaway } from '../types';
@@ -142,39 +142,19 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
       // Pequena animação/delay para suspense
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      const randomIndex = Math.floor(Math.random() * selectedGiveawayParticipants.length);
-      const winner = selectedGiveawayParticipants[randomIndex];
-
-      const { error } = await supabase
-        .from('giveaways')
-        .update({
-          winner_id: winner.id,
-          is_active: false // Opcional: desativa o sorteio após escolher o vencedor
-        })
-        .eq('id', selectedGiveawayId);
+      const { data, error } = await supabase
+        .rpc('run_giveaway_raffle', { p_giveaway_id: selectedGiveawayId });
 
       if (error) throw error;
 
-      alert(`🎉 Sorteio realizado! Parabéns a(o) vencedor(a): ${winner.full_name || winner.username}`);
-
-      // Notificar o vencedor
-      try {
-        await supabase.from('notifications').insert({
-          user_id: winner.id,
-          type: 'giveaway',
-          title: '🏆 VOCÊ GANHOU O SORTEIO!',
-          content: `Parabéns! Você foi o sorteado(a). Entre em contato com a Nobel Petrópolis para retirar seu prêmio.`,
-          link: '/giveaways'
-        });
-      } catch (notifErr) {
-        console.warn('Erro ao notificar vencedor:', notifErr);
-      }
+      const winner = Array.isArray(data) ? data[0] : data;
+      alert(`🎉 Sorteio realizado! Parabéns a(o) vencedor(a): ${winner?.winner_full_name || winner?.winner_username || 'Vencedor selecionado'}`);
 
       fetchGiveaways();
       setShowParticipantsModal(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error picking winner:', err);
-      alert('Erro ao realizar sorteio.');
+      alert(`Erro ao realizar sorteio: ${err.message || 'tente novamente'}`);
     } finally {
       setPickingWinner(false);
     }
@@ -294,6 +274,27 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
     });
   };
 
+  const handleReopenGiveaway = async (giveaway: Giveaway) => {
+    const defaultDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const endDate = window.prompt('Nova data do sorteio (AAAA-MM-DD):', defaultDate);
+    if (!endDate) return;
+
+    try {
+      const { error } = await supabase.rpc('reopen_giveaway_round', {
+        p_giveaway_id: giveaway.id,
+        p_end_date: endDate
+      });
+
+      if (error) throw error;
+
+      alert('Nova rodada criada com sucesso!');
+      fetchGiveaways();
+    } catch (err: any) {
+      console.error('Error reopening giveaway:', err);
+      alert(`Erro ao reabrir sorteio: ${err.message || 'tente novamente'}`);
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
     setUploading(true);
@@ -347,7 +348,9 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-8">
                   <div className="flex items-center gap-2 text-yellow-400 mb-2">
                     <Gift size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Sorteio Ativo</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                      {giveaway.winner_id || !giveaway.is_active ? 'Sorteio Encerrado' : 'Sorteio Ativo'}
+                    </span>
                   </div>
                   <h3 className="text-white text-2xl font-black font-serif italic leading-tight">{giveaway.title}</h3>
 
@@ -381,9 +384,10 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                       {isAdmin && (giveaway.participants_count || 0) > 0 && (
                         <button
                           onClick={() => fetchParticipants(giveaway.id)}
+                          disabled={!!giveaway.winner_id}
                           className="bg-black text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-black transition-colors"
                         >
-                          Ver Lista
+                          {giveaway.winner_id ? 'Encerrado' : 'Ver Lista'}
                         </button>
                       )}
                     </div>
@@ -391,7 +395,11 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  {participating.includes(giveaway.id) ? (
+                  {giveaway.winner_id || !giveaway.is_active ? (
+                    <div className="flex-1 bg-gray-100 text-gray-400 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2">
+                      <Trophy size={16} /> Sorteio encerrado
+                    </div>
+                  ) : participating.includes(giveaway.id) ? (
                     <div className="flex-1 bg-green-50 text-green-600 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2">
                       <CheckCircle2 size={16} /> Já participando
                     </div>
@@ -406,6 +414,15 @@ const GiveawaysView: React.FC<GiveawaysViewProps> = ({ profile }) => {
 
                   {isAdmin && (
                     <div className="flex gap-2">
+                      {giveaway.winner_id && (
+                        <button
+                          onClick={() => handleReopenGiveaway(giveaway)}
+                          className="p-4 bg-yellow-50 text-yellow-600 rounded-2xl hover:bg-yellow-100 transition-colors"
+                          title="Reabrir nova rodada"
+                        >
+                          <RefreshCw size={20} />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEditClick(giveaway)}
                         className="p-4 bg-blue-50 text-blue-500 rounded-2xl hover:bg-blue-100 transition-colors"
