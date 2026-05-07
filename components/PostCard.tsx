@@ -17,9 +17,10 @@ interface PostCardProps {
   currentProfile: Profile | null;
   onDelete?: (postId: string) => void;
   onEdit?: (post: Post) => void;
+  onLikeChange?: (postId: string, liked: boolean, likesCount: number) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onEdit }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onEdit, onLikeChange }) => {
   const [liked, setLiked] = useState(post.user_has_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [isLiking, setIsLiking] = useState(false);
@@ -208,13 +209,17 @@ Confira a resenha completa em:
 
     setIsLiking(true);
     const wasLiked = liked;
+    const nextLiked = !wasLiked;
+    const nextLikesCount = Math.max(0, likesCount + (wasLiked ? -1 : 1));
     setLiked(!wasLiked);
-    setLikesCount(prev => wasLiked ? prev - 1 : prev + 1);
+    setLikesCount(nextLikesCount);
+    onLikeChange?.(post.id, nextLiked, nextLikesCount);
 
     if (isSupabaseConfigured) {
       try {
         if (wasLiked) {
-          await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
+          const { error: deleteError } = await supabase.from('likes').delete().eq('user_id', currentProfile.id).eq('post_id', post.id);
+          if (deleteError) throw deleteError;
         } else {
           // Check if already liked to prevent duplicates
           const { data: existingLike } = await supabase
@@ -235,18 +240,22 @@ Confira a resenha completa em:
           } else {
             // If already liked, revert UI state to liked
             setLiked(true);
+            onLikeChange?.(post.id, true, nextLikesCount);
           }
         }
       } catch (err) {
         console.error(err);
         if (!wasLiked && (err as any)?.code === '23505') {
           setLiked(true);
-          setLikesCount(prev => Math.max(prev, post.likes_count || 1));
+          const settledCount = Math.max(nextLikesCount, post.likes_count || 1);
+          setLikesCount(settledCount);
+          onLikeChange?.(post.id, true, settledCount);
           return;
         }
         // Revert on error
         setLiked(wasLiked);
-        setLikesCount(prev => wasLiked ? prev + 1 : prev - 1);
+        setLikesCount(likesCount);
+        onLikeChange?.(post.id, wasLiked, likesCount);
       } finally {
         setIsLiking(false);
       }

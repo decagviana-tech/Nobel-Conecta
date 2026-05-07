@@ -197,6 +197,14 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
     }
   };
 
+  const handleLikeChange = (postId: string, liked: boolean, likesCount: number) => {
+    setPosts(prev => prev.map(post => (
+      post.id === postId
+        ? { ...post, user_has_liked: liked, likes_count: likesCount }
+        : post
+    )));
+  };
+
   const handleSearchUsers = async (term: string) => {
     setSearchTerm(term);
     if (term.length < 2) {
@@ -358,7 +366,13 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
           [1, 2].map(i => <div key={i} className="h-40 bg-gray-50 rounded-2xl animate-pulse"></div>)
         ) : filteredPosts.length > 0 ? (
           filteredPosts.map(post => (
-            <PostCard key={post.id} post={post} currentProfile={profile} onDelete={confirmDeletePost} />
+            <PostCard
+              key={post.id}
+              post={post}
+              currentProfile={profile}
+              onDelete={confirmDeletePost}
+              onLikeChange={handleLikeChange}
+            />
           ))
         ) : (
           <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">

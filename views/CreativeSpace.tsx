@@ -77,7 +77,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
         .select(`
           *,
           author:profiles(*),
-          creative_likes(count),
+          creative_likes(user_id),
           creative_comments(count)
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -87,8 +87,9 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
       
       const newPosts = data.map((p: any) => ({
         ...p,
-        likes_count: p.creative_likes?.[0]?.count || 0,
-        comments_count: p.creative_comments?.[0]?.count || 0
+        likes_count: p.creative_likes?.length || 0,
+        comments_count: p.creative_comments?.[0]?.count || 0,
+        user_has_liked: profile?.id ? p.creative_likes?.some((l: any) => l.user_id === profile.id) : false
       }));
 
       if (pageNum === 0) {
@@ -113,6 +114,14 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
       setPage(nextPage);
       fetchPosts(nextPage);
     }
+  };
+
+  const handleLikeChange = (postId: string, liked: boolean, likesCount: number) => {
+    setPosts(prev => prev.map(post => (
+      post.id === postId
+        ? { ...post, user_has_liked: liked, likes_count: likesCount }
+        : post
+    )));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,6 +261,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
               onDelete={handleDeletePost}
               onEdit={handleEdit}
               isAdmin={isAdmin}
+              onLikeChange={handleLikeChange}
             />
           </div>
         ))}
