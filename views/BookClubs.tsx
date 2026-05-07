@@ -172,12 +172,12 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
       localStorage.setItem(CLUBS_STORAGE_KEY, JSON.stringify(updated));
     } else {
       try {
-        const { error } = await supabase.from('book_clubs').delete().eq('id', id);
+        const { error } = await supabase.rpc('delete_book_club', { p_club_id: id });
         if (error) throw error;
         await fetchClubs();
-      } catch (err) {
+      } catch (err: any) {
         setClubs(previousClubs);
-        alert('Erro ao excluir clube.');
+        alert(`Erro ao excluir clube: ${err.message || 'permissão negada'}`);
       }
     }
   };
@@ -206,9 +206,12 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {filteredClubs.length > 0 ? filteredClubs.map(club => (
+        {filteredClubs.length > 0 ? filteredClubs.map(club => {
+          const canManageClub = isAdmin || club.admin_id === profile?.id;
+
+          return (
           <div key={club.id} className="relative group">
-            {isAdmin && (
+            {canManageClub && (
               <div className="absolute -top-2 -right-2 flex gap-1 z-30">
                 <button
                   onClick={(e) => handleEditClub(e, club)}
@@ -246,7 +249,8 @@ const BookClubs: React.FC<BookClubsProps> = ({ profile }) => {
               <ChevronRight className="text-gray-200 group-hover:text-black transition-colors" size={24} />
             </Link>
           </div>
-        )) : (
+          );
+        }) : (
           <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">
             <BookOpen className="mx-auto text-gray-100 mb-3" size={40} />
             <p className="text-gray-400 font-bold uppercase text-[9px] tracking-[0.2em]">Nenhum clube encontrado</p>

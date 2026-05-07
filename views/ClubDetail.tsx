@@ -165,18 +165,16 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
     setConfirmModal({
       isOpen: true,
       title: "Excluir Clube?",
-      message: "ATENÇÃO: Isso excluirá o clube e todas as suas postagens permanentemente. Esta ação não pode ser desfeita.",
+      message: "Isso excluirá o clube e a lista de membros. As discussões dos leitores serão preservadas no perfil de quem publicou, mas deixarão de aparecer neste clube.",
       onConfirm: async () => {
         try {
-          const { error } = await supabase
-            .from('book_clubs')
-            .delete()
-            .eq('id', id);
+          const { error } = await supabase.rpc('delete_book_club', { p_club_id: id });
 
           if (error) throw error;
           navigate('/clubs');
-        } catch (err) {
+        } catch (err: any) {
           console.error('Error deleting club:', err);
+          alert(`Erro ao excluir clube: ${err.message || 'permissão negada'}`);
         }
       }
     });
