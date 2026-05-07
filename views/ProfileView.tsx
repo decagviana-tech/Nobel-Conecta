@@ -115,7 +115,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
     try {
       const [pRes, postsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).is('archived_at', null).order('created_at', { ascending: false })
+        supabase.from('posts').select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)').eq('user_id', userId).order('created_at', { ascending: false })
       ]);
 
       if (pRes.error) {
@@ -124,7 +124,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ currentUserId, currentProfile
         setProfile(pRes.data);
         setEditForm(pRes.data);
       }
-      setPosts(postsRes.data?.map((p: any) => ({
+      setPosts(postsRes.data?.filter((p: any) => !p.archived_at).map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
         comments_count: p.comments?.[0]?.count || 0,

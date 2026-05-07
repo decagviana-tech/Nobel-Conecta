@@ -100,11 +100,10 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
           comments(count)
         `)
         .eq('club_id', id)
-        .is('archived_at', null)
         .order('created_at', { ascending: false });
 
       if (postError) throw postError;
-      setPosts((postData || []).map((p: any) => ({
+      setPosts((postData || []).filter((p: any) => !p.archived_at).map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
         comments_count: p.comments?.[0]?.count || 0,

@@ -113,14 +113,14 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
         .from('posts')
         .select(`*, author:profiles(*), likes:likes(user_id), comments:comments(count)`, { count: 'exact' })
         .eq('type', 'review')
-        .is('archived_at', null)
         .order('created_at', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
       console.log('Fetched posts data for page', pageNum, ':', data);
       
-      const newPosts = data.map((p: any) => ({
+      const visiblePosts = (data || []).filter((p: any) => !p.archived_at);
+      const newPosts = visiblePosts.map((p: any) => ({
         ...p,
         likes_count: p.likes?.length || 0,
         comments_count: p.comments?.[0]?.count || 0,

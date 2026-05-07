@@ -50,7 +50,6 @@ export const fetchPostsQuery = (options?: {
   let query = supabase
     .from('posts')
     .select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)')
-    .is('archived_at', null)
     .order('created_at', { ascending: false })
     .range(from, to);
 
@@ -69,7 +68,7 @@ export const fetchPostsQuery = (options?: {
  * Transforms raw Supabase post data to include computed fields.
  */
 export const transformPosts = (rawPosts: any[], currentUserId?: string): Post[] => {
-  return rawPosts.map((p: any) => ({
+  return rawPosts.filter((p: any) => !p.archived_at).map((p: any) => ({
     ...p,
     likes_count: p.likes?.length || 0,
     comments_count: p.comments?.[0]?.count || 0,

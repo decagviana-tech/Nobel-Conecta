@@ -75,7 +75,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
       const results = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('shop_books').select('*').order('title', { ascending: true }).limit(50),
-        supabase.from('posts').select('*, author:profiles(*)').is('archived_at', null).order('created_at', { ascending: false }).limit(50),
+        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*, user:profiles!user_id(*), reward:rewards!reward_id(*)').order('created_at', { ascending: false }).limit(50),
         supabase.from('giveaways').select('*, participants:giveaway_participants(profiles(username))').order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -88,7 +88,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
 
       const userData = resUsr.data || [];
       const shopData = resShp.data || [];
-      const postData = resPst.data || [];
+      const postData = (resPst.data || []).filter((p: any) => !p.archived_at);
       const redemptionData = resRedem.data || [];
       const giveawayListData = resGivList.data || [];
       const pendingCount = resPend.count || 0;

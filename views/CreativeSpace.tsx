@@ -79,13 +79,13 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
           creative_likes(user_id),
           creative_comments(count)
         `, { count: 'exact' })
-        .is('archived_at', null)
         .order('created_at', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
       
-      const newPosts = data.map((p: any) => ({
+      const visiblePosts = (data || []).filter((p: any) => !p.archived_at);
+      const newPosts = visiblePosts.map((p: any) => ({
         ...p,
         likes_count: p.creative_likes?.length || 0,
         comments_count: p.creative_comments?.[0]?.count || 0,
