@@ -28,6 +28,14 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
       }
 
       if (isSupabaseConfigured) {
+        const intervalId = window.setInterval(fetchNotifications, 10000);
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            fetchNotifications();
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         const channel = supabase
           .channel(`notifications:${profile.id}`)
           .on('postgres_changes', {
@@ -41,6 +49,8 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
           .subscribe();
 
         return () => {
+          window.clearInterval(intervalId);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
           supabase.removeChannel(channel);
         };
       }
