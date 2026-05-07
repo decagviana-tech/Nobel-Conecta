@@ -38,7 +38,7 @@ const CreativePostCard: React.FC<CreativePostCardProps> = ({ post, currentProfil
   useEffect(() => {
     if (showComments) {
       if (isSupabaseConfigured) {
-        supabase.from('creative_comments').select('*, author:profiles(*)').eq('post_id', post.id).is('archived_at', null).then(({ data }) => {
+        supabase.from('creative_comments').select('*, author:profiles!creative_comments_user_id_fkey(*)').eq('post_id', post.id).is('archived_at', null).then(({ data }) => {
           if (data) setComments(data);
         });
       }

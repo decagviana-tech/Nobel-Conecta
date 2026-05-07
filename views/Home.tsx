@@ -111,7 +111,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
 
       const { data, error, count } = await supabase
         .from('posts')
-        .select(`*, author:profiles(*), likes:likes(user_id), comments:comments(count)`, { count: 'exact' })
+        .select(`*, author:profiles!posts_user_id_fkey(*), likes:likes(user_id), comments:comments(count)`, { count: 'exact' })
         .eq('type', 'review')
         .order('created_at', { ascending: false })
         .range(from, to);

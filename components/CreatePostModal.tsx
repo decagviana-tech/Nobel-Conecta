@@ -113,7 +113,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ userId, currentProfil
           .from('posts')
           .update(postData)
           .eq('id', editingPost.id)
-          .select('*, author:profiles(*)')
+          .select('*, author:profiles!posts_user_id_fkey(*)')
           .single();
 
         if (error) {

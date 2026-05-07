@@ -49,7 +49,7 @@ export const fetchPostsQuery = (options?: {
 
   let query = supabase
     .from('posts')
-    .select('*, author:profiles(*), likes:likes(user_id), comments:comments(count)')
+    .select('*, author:profiles!posts_user_id_fkey(*), likes:likes(user_id), comments:comments(count)')
     .order('created_at', { ascending: false })
     .range(from, to);
 

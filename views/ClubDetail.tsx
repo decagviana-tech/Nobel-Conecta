@@ -95,7 +95,7 @@ const ClubDetail: React.FC<ClubDetailProps> = ({ profile }) => {
         .from('posts')
         .select(`
           *,
-          author:profiles(*),
+          author:profiles!posts_user_id_fkey(*),
           likes(user_id),
           comments(count)
         `)

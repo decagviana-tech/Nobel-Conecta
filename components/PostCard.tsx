@@ -39,7 +39,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentProfile, onDelete, onE
   useEffect(() => {
     if (showComments) {
       if (isSupabaseConfigured) {
-        supabase.from('comments').select('*, author:profiles(*)').eq('post_id', post.id).is('archived_at', null).then(({ data }) => {
+        supabase.from('comments').select('*, author:profiles!comments_user_id_fkey(*)').eq('post_id', post.id).is('archived_at', null).then(({ data }) => {
           if (data) setComments(data);
         });
       }

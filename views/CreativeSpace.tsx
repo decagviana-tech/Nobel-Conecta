@@ -75,7 +75,7 @@ const CreativeSpace: React.FC<CreativeSpaceProps> = ({ profile }) => {
         .from('creative_posts')
         .select(`
           *,
-          author:profiles(*),
+          author:profiles!creative_posts_user_id_fkey(*),
           creative_likes(user_id),
           creative_comments(count)
         `, { count: 'exact' })

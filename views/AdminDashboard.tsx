@@ -75,7 +75,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
       const results = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('shop_books').select('*').order('title', { ascending: true }).limit(50),
-        supabase.from('posts').select('*, author:profiles(*)').order('created_at', { ascending: false }).limit(50),
+        supabase.from('posts').select('*, author:profiles!posts_user_id_fkey(*)').order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*, user:profiles!user_id(*), reward:rewards!reward_id(*)').order('created_at', { ascending: false }).limit(50),
         supabase.from('giveaways').select('*, participants:giveaway_participants(profiles(username))').order('created_at', { ascending: false }).limit(50),
         supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
