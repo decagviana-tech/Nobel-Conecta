@@ -508,6 +508,10 @@ CREATE TABLE public.redemptions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS redemptions_redemption_code_unique
+ON public.redemptions (redemption_code)
+WHERE redemption_code IS NOT NULL;
+
 -- 12. Shop Books table
 CREATE TABLE public.shop_books (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -836,6 +840,9 @@ DECLARE
   v_reward public.rewards%ROWTYPE;
   v_profile_points INTEGER;
   v_redemption_id UUID;
+  v_redemption_code TEXT;
+  v_month_start TIMESTAMP WITH TIME ZONE;
+  v_next_month_start TIMESTAMP WITH TIME ZONE;
 BEGIN
   IF auth.uid() IS NULL OR p_user_id IS DISTINCT FROM auth.uid() THEN
     RAISE EXCEPTION 'users can only redeem rewards for themselves';
@@ -857,6 +864,24 @@ BEGIN
 
   IF v_reward.type IN ('gift', 'book') AND COALESCE(v_reward.stock, 0) <= 0 THEN
     RAISE EXCEPTION 'reward is out of stock';
+  END IF;
+
+  IF v_reward.type IN ('gift', 'book') THEN
+    v_month_start := date_trunc('month', timezone('America/Sao_Paulo', now())) AT TIME ZONE 'America/Sao_Paulo';
+    v_next_month_start := v_month_start + INTERVAL '1 month';
+
+    IF EXISTS (
+      SELECT 1
+      FROM public.redemptions r
+      JOIN public.rewards rew ON rew.id = r.reward_id
+      WHERE r.user_id = p_user_id
+        AND rew.type IN ('gift', 'book')
+        AND r.status IN ('pending', 'completed')
+        AND r.created_at >= v_month_start
+        AND r.created_at < v_next_month_start
+    ) THEN
+      RAISE EXCEPTION 'monthly physical reward limit reached';
+    END IF;
   END IF;
 
   SELECT COALESCE(points, 0)
@@ -885,8 +910,21 @@ BEGIN
     WHERE id = p_reward_id;
   END IF;
 
+  IF v_reward.type = 'discount' THEN
+    LOOP
+      v_redemption_code := 'NOBEL-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+      EXIT WHEN NOT EXISTS (
+        SELECT 1
+        FROM public.redemptions
+        WHERE redemption_code = v_redemption_code
+      );
+    END LOOP;
+  ELSE
+    v_redemption_code := NULL;
+  END IF;
+
   INSERT INTO public.redemptions (user_id, reward_id, status, redemption_code)
-  VALUES (p_user_id, p_reward_id, 'pending', p_redemption_code)
+  VALUES (p_user_id, p_reward_id, 'pending', v_redemption_code)
   RETURNING id INTO v_redemption_id;
 
   RETURN v_redemption_id;

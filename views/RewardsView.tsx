@@ -388,6 +388,39 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     console.log('--- FIM PROCESSO DE EXCLUSÃO ---');
   };
 
+  const getRedeemErrorMessage = (message?: string) => {
+    if (!message) return 'Erro desconhecido';
+    if (message.includes('monthly physical reward limit reached')) {
+      return 'Voce ja resgatou um premio fisico neste mes. Cupons de desconto continuam liberados.';
+    }
+    if (message.includes('reward is out of stock')) return 'Este item esta esgotado.';
+    if (message.includes('insufficient points')) return 'Voce nao tem pontos suficientes.';
+    if (message.includes('reward is not available')) return 'Esta recompensa nao esta disponivel.';
+    return message;
+  };
+
+  const openRewardWhatsApp = (reward: Reward, redemptionCode?: string | null) => {
+    const whatsappNumber = '552422358014'; // Nobel Petropolis
+    const message = reward.type === 'discount'
+      ? encodeURIComponent(
+        `Ola! Gostaria de usar meu cupom de desconto do Nobel Conecta em uma compra.\n\n` +
+        `Usuario: @${profile?.username}\n` +
+        `Email: ${profile?.email || 'N/A'}\n` +
+        `Cupom: ${redemptionCode || 'codigo pendente'}\n` +
+        `Regra: uso unico e nao acumulativo com outros cupons.\n\n` +
+        `Por favor, confirme se o cupom ainda esta pendente para uso.`
+      )
+      : encodeURIComponent(
+        `Ola! Gostaria de reservar meu premio "${reward.title}" que acabei de resgatar no Nobel Conecta.\n\n` +
+        `Usuario: @${profile?.username}\n` +
+        `Email: ${profile?.email || 'N/A'}\n` +
+        `Item: ${reward.title}\n\n` +
+        `Estou enviando esta mensagem para garantir minha reserva na loja.`
+      );
+
+    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
+  };
+
   const handleRedeem = async (reward: Reward) => {
     if (!profile) return;
 
@@ -408,7 +441,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
-          const redemptionCode = reward.type === 'discount'
+          const demoRedemptionCode = reward.type === 'discount'
             ? `NOBEL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
             : null;
 
@@ -416,7 +449,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             user_id: profile.id,
             reward_id: reward.id,
             status: 'pending',
-            redemption_code: redemptionCode || undefined,
+            redemption_code: demoRedemptionCode || undefined,
             created_at: new Date().toISOString()
           };
 
@@ -437,18 +470,34 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
               setRewards(rewards.map(r => r.id === reward.id ? { ...r, stock: r.stock! - 1 } : r));
             }
 
-            alert('Resgate realizado com sucesso! Verifique em "Meus Resgates".');
+            if (reward.type === 'discount') {
+              alert('Cupom gerado! Redirecionando para o WhatsApp da loja para validacao.');
+              openRewardWhatsApp(reward, demoRedemptionCode);
+            } else {
+              alert('Resgate realizado com sucesso! Verifique em "Meus Resgates".');
+            }
             window.location.reload(); // To refresh profile points in navbar
           } else {
             // Usar RPC para resgate atômico (evita erros de estoque/pontos)
-            const { error: rpcError } = await supabase.rpc('redeem_reward', {
+            const { data: redemptionId, error: rpcError } = await supabase.rpc('redeem_reward', {
               p_reward_id: reward.id,
               p_user_id: profile.id,
               p_points_req: reward.points_required,
-              p_redemption_code: redemptionCode
+              p_redemption_code: null
             });
 
             if (rpcError) throw rpcError;
+
+            let confirmedRedemptionCode: string | null = null;
+            if (reward.type === 'discount' && redemptionId) {
+              const { data: createdRedemption } = await supabase
+                .from('redemptions')
+                .select('redemption_code')
+                .eq('id', redemptionId)
+                .single();
+
+              confirmedRedemptionCode = createdRedemption?.redemption_code || null;
+            }
 
             // Integração WhatsApp se for item físico (brinde ou livro)
             if (reward.type === 'gift' || reward.type === 'book') {
@@ -466,7 +515,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
               alert('Resgate realizado! Redirecionando para o WhatsApp da loja para sua reserva...');
               window.open(whatsappUrl, '_blank');
             } else {
-              alert('Resgate realizado com sucesso! Seu código de desconto está disponível em "Meus Resgates".');
+              alert('Cupom gerado! Redirecionando para o WhatsApp da loja. O cupom e de uso unico e nao acumulativo.');
+              openRewardWhatsApp(reward, confirmedRedemptionCode);
             }
 
             fetchRedemptions();
@@ -479,7 +529,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
           }
         } catch (err: any) {
           console.error('Erro ao realizar resgate:', err);
-          alert(`Erro ao realizar resgate: ${err.message || 'Erro desconhecido'}`);
+          alert(`Erro ao realizar resgate: ${getRedeemErrorMessage(err.message)}`);
         }
       }
     });
@@ -802,6 +852,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   <div className="bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
                     <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5">Código</p>
                     <p className="font-mono font-black text-gray-900 text-sm">{redemption.redemption_code}</p>
+                    <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mt-1">Uso unico, nao acumulativo</p>
                   </div>
                 )}
 

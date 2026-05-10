@@ -635,6 +635,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                             <code className="bg-gray-100 px-2 py-1 rounded text-[10px] font-mono font-bold text-gray-600">
                               {r.redemption_code || '---'}
                             </code>
+                            {r.redemption_code && (
+                              <p className="mt-1 text-[8px] font-black uppercase tracking-widest text-gray-400">
+                                Uso unico, nao acumulativo
+                              </p>
+                            )}
                           </td>
                           <td className="px-8 py-5 text-xs text-gray-400">
                             {new Date(r.created_at).toLocaleDateString()}
@@ -654,7 +659,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ profile }) => {
                                 <button
                                   onClick={() => handleApproveRedemption(r.id, r.user_id, rw?.title || 'Prêmio')}
                                   className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-500 hover:text-white transition-all shadow-sm"
-                                  title="Aprovar e Dar Baixa"
+                                  title={r.redemption_code ? 'Dar baixa no cupom usado' : 'Aprovar e dar baixa'}
                                 >
                                   <CheckCircle2 size={18} />
                                 </button>
