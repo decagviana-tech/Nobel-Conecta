@@ -175,6 +175,22 @@ BEGIN
     RAISE EXCEPTION 'reward is out of stock';
   END IF;
 
+  IF v_reward.type = 'discount' THEN
+    SELECT r.id
+    INTO v_redemption_id
+    FROM public.redemptions r
+    WHERE r.user_id = p_user_id
+      AND r.reward_id = p_reward_id
+      AND r.status = 'pending'
+      AND r.redemption_code IS NOT NULL
+    ORDER BY r.created_at DESC
+    LIMIT 1;
+
+    IF FOUND THEN
+      RETURN v_redemption_id;
+    END IF;
+  END IF;
+
   IF v_reward.type IN ('gift', 'book') THEN
     v_month_start := date_trunc('month', timezone('America/Sao_Paulo', now())) AT TIME ZONE 'America/Sao_Paulo';
     v_next_month_start := v_month_start + INTERVAL '1 month';

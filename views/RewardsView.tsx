@@ -49,6 +49,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
   const [activeTab, setActiveTab] = useState<'available' | 'my_redemptions'>('available');
   const [error, setError] = useState<string | null>(null);
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
+  const [redeemingRewardId, setRedeemingRewardId] = useState<string | null>(null);
 
   const isAdmin = useAdmin(profile);
 
@@ -421,8 +422,26 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
     window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
   };
 
+  const getPendingDiscountRedemption = (rewardId: string) =>
+    redemptions.find(redemption =>
+      redemption.reward_id === rewardId &&
+      redemption.status === 'pending' &&
+      redemption.redemption_code
+    );
+
   const handleRedeem = async (reward: Reward) => {
     if (!profile) return;
+
+    const pendingDiscount = reward.type === 'discount' ? getPendingDiscountRedemption(reward.id) : null;
+
+    if (pendingDiscount) {
+      alert('Voce ja tem um cupom pendente. Vou reabrir o WhatsApp com o mesmo codigo, sem descontar pontos novamente.');
+      openRewardWhatsApp(reward, pendingDiscount.redemption_code);
+      setActiveTab('my_redemptions');
+      return;
+    }
+
+    if (redeemingRewardId === reward.id) return;
 
     if ((profile.points || 0) < reward.points_required) {
       alert('Você não tem pontos suficientes.');
@@ -441,6 +460,7 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
+          setRedeemingRewardId(reward.id);
           const demoRedemptionCode = reward.type === 'discount'
             ? `NOBEL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
             : null;
@@ -530,6 +550,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
         } catch (err: any) {
           console.error('Erro ao realizar resgate:', err);
           alert(`Erro ao realizar resgate: ${getRedeemErrorMessage(err.message)}`);
+        } finally {
+          setRedeemingRewardId(null);
         }
       }
     });
@@ -748,13 +770,27 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                     <div className="flex gap-2 mt-auto">
                       <button
                         onClick={() => handleRedeem(reward)}
-                        disabled={(profile?.points || 0) < reward.points_required || ((reward.type === 'gift' || reward.type === 'book') && reward.stock === 0)}
-                        className={`flex-1 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all ${(profile?.points || 0) >= reward.points_required && ((reward.type !== 'gift' && reward.type !== 'book') || (reward.stock || 0) > 0)
+                        disabled={
+                          redeemingRewardId === reward.id ||
+                          (((profile?.points || 0) < reward.points_required) && !(reward.type === 'discount' && getPendingDiscountRedemption(reward.id))) ||
+                          ((reward.type === 'gift' || reward.type === 'book') && reward.stock === 0)
+                        }
+                        className={`flex-1 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all ${(
+                          redeemingRewardId !== reward.id &&
+                          (((profile?.points || 0) >= reward.points_required) || (reward.type === 'discount' && getPendingDiscountRedemption(reward.id))) &&
+                          ((reward.type !== 'gift' && reward.type !== 'book') || (reward.stock || 0) > 0)
+                        )
                           ? 'bg-yellow-400 text-black hover:bg-yellow-500 shadow-md'
                           : 'bg-gray-50 text-gray-300 cursor-not-allowed'
                           }`}
                       >
-                        {(profile?.points || 0) >= reward.points_required ? 'Resgatar' : 'Faltam Pontos'}
+                        {redeemingRewardId === reward.id
+                          ? 'Processando'
+                          : reward.type === 'discount' && getPendingDiscountRedemption(reward.id)
+                            ? 'Abrir Cupom'
+                            : (profile?.points || 0) >= reward.points_required
+                              ? 'Resgatar'
+                              : 'Faltam Pontos'}
                       </button>
 
                       {isAdmin && (

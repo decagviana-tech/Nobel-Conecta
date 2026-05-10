@@ -1,9 +1,5 @@
 BEGIN;
 
-CREATE UNIQUE INDEX IF NOT EXISTS redemptions_redemption_code_unique
-ON public.redemptions (redemption_code)
-WHERE redemption_code IS NOT NULL;
-
 DROP FUNCTION IF EXISTS public.redeem_reward(UUID, UUID, INTEGER, TEXT);
 
 CREATE FUNCTION public.redeem_reward(
