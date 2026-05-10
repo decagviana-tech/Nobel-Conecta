@@ -872,9 +872,17 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                 key={redemption.id}
                 className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4"
               >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${redemption.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-yellow-50 text-yellow-500'
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${redemption.status === 'completed'
+                  ? 'bg-green-50 text-green-500'
+                  : redemption.status === 'cancelled'
+                    ? 'bg-red-50 text-red-500'
+                    : 'bg-yellow-50 text-yellow-500'
                   }`}>
-                  {redemption.status === 'completed' ? <CheckCircle2 size={24} /> : <Clock size={24} />}
+                  {redemption.status === 'completed'
+                    ? <CheckCircle2 size={24} />
+                    : redemption.status === 'cancelled'
+                      ? <X size={24} />
+                      : <Clock size={24} />}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -892,9 +900,13 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   </div>
                 )}
 
-                <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${redemption.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${redemption.status === 'completed'
+                  ? 'bg-green-100 text-green-700'
+                  : redemption.status === 'cancelled'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-yellow-100 text-yellow-700'
                   }`}>
-                  {redemption.status === 'completed' ? 'Concluído' : 'Pendente'}
+                  {redemption.status === 'completed' ? 'Concluído' : redemption.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
                 </div>
               </div>
             ))
