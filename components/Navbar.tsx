@@ -147,7 +147,7 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
 
       {/* Mobile Bottom Nav (Continua embaixo no celular por usabilidade) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-[10000] flex justify-around items-center h-20 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] px-2 pb-2 backdrop-blur-md bg-white/95">
-        <MobileNavLink to="/" icon={Home} label="Início" />
+        <MobileNavLink to="/?section=feed" icon={Home} label="Feed" />
         <MobileNavLink to="/clubs" icon={Users} label="Clubes" />
         <MobileNavLink to="/events" icon={Calendar} label="Agenda" />
         <MobileNavLink to="/giveaways" icon={Gift} label="Prêmios" />

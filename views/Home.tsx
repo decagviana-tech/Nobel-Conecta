@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Plus, BookText, Search, X, Users, Compass, ShoppingBag, PenTool, Loader2 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from '../supabase';
@@ -27,6 +27,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
   const [activeTab, setActiveTab] = useState<'explorar' | 'seguindo'>('explorar');
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const feedRef = useRef<HTMLDivElement | null>(null);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -40,6 +41,14 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
     fetchPosts(0);
     loadFollowing();
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (searchParams.get('section') !== 'feed') return;
+
+    window.setTimeout(() => {
+      feedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }, [searchParams, loading]);
 
   const loadFollowing = async () => {
     if (!profile?.id) return;
@@ -270,7 +279,7 @@ const Home: React.FC<HomeProps> = ({ profile }) => {
       </div>
 
       {/* Seletor de Abas */}
-      <div className="flex border-b border-gray-100 mb-6 bg-white rounded-t-2xl overflow-hidden">
+      <div ref={feedRef} className="scroll-mt-24 md:scroll-mt-8 flex border-b border-gray-100 mb-6 bg-white rounded-t-2xl overflow-hidden">
         <button
           onClick={() => {
             setActiveTab('explorar');

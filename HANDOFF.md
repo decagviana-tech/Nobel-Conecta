@@ -109,3 +109,4 @@ export const useAdmin = (profile: Profile | null): boolean => {
 - [ ] Criar uma tabela de junção `book_club_members` (UUID para UUID).
 - [ ] Implementar carregamento de imagens via `IndexedDB` no modo demo para evitar estouro de cota do `localStorage`.
 - [ ] Adicionar um sistema de logs de erros para o Supabase (tabela de `logs`).
+- [x] Melhorar navegacao mobile da Home: o item mobile "Feed" aponta para a Home com rolagem direta ao feed principal, mantendo o menu inferior enxuto e sem adicionar abas para Vitrine ou Mural.
