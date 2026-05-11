@@ -581,6 +581,9 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
           <p className="text-gray-400 text-xs max-w-xs leading-relaxed">
             Continue participando da comunidade para ganhar mais pontos e trocar por prêmios exclusivos!
           </p>
+          <div className="mt-4 max-w-sm rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold leading-relaxed text-gray-300">
+            <span className="text-yellow-400 uppercase tracking-widest">Retirada:</span> prêmios físicos devem ser retirados na Nobel Petrópolis em até 7 dias após a confirmação. Cupons são de uso único e não acumulativo.
+          </div>
         </div>
 
         {/* Background Decoration */}
@@ -688,12 +691,18 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-row items-center p-4 gap-6"
                 >
                   {reward.image_url ? (
-                    <div className="w-24 h-32 sm:w-32 sm:h-40 shrink-0 overflow-hidden rounded-2xl relative bg-gray-900">
+                    <div className={`${reward.type === 'book'
+                      ? 'w-20 h-32 sm:w-24 sm:h-36 rounded-lg shadow-[8px_10px_20px_rgba(0,0,0,0.14)] ring-1 ring-black/5'
+                      : 'w-24 h-32 sm:w-32 sm:h-40 rounded-2xl'
+                      } shrink-0 overflow-hidden relative bg-gray-900`}>
                       <img
                         src={reward.image_url}
                         alt={reward.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
+                      {reward.type === 'book' && (
+                        <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/30 to-transparent pointer-events-none" />
+                      )}
                     </div>
                   ) : (
                     <div className={`w-24 h-32 sm:w-32 sm:h-40 shrink-0 flex flex-col items-center justify-center rounded-2xl relative overflow-hidden ${reward.type === 'discount' ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'
@@ -751,7 +760,9 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                     </div>
 
                     <h3 className="text-lg font-black tracking-tight text-gray-900 mb-1 font-serif italic">{reward.title}</h3>
-                    <p className="text-gray-500 text-xs mb-4 italic leading-relaxed">"{reward.description}"</p>
+                    <p className="text-gray-500 text-xs mb-4 italic leading-relaxed">
+                      {reward.type === 'book' ? reward.description : `"${reward.description}"`}
+                    </p>
 
                     {(reward.type === 'gift' || reward.type === 'book') && reward.stock !== undefined && (
                       <div className="mb-4 flex items-center gap-2">
@@ -945,8 +956,8 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                 <div className="space-y-5">
                   {/* Upload de Imagem */}
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Foto do Brinde (Opcional)</label>
-                    <div className="relative aspect-[4/5] w-32 mx-auto rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden group">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">{newReward.type === 'book' ? 'Capa do Livro (Opcional)' : 'Foto do Brinde (Opcional)'}</label>
+                    <div className={`relative ${newReward.type === 'book' ? 'aspect-[2/3] w-28 rounded-lg' : 'aspect-[4/5] w-32 rounded-2xl'} mx-auto bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden group`}>
                       {newImageUrl ? (
                         <>
                           <img src={newImageUrl} className="w-full h-full object-cover" />
@@ -1037,13 +1048,13 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Regras / Descrição</label>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">{newReward.type === 'book' ? 'Sinopse do Livro' : 'Descrição'}</label>
                     <textarea
                       value={newReward.description}
                       onChange={(e) => setNewReward({ ...newReward, description: e.target.value })}
                       rows={3}
                       className="w-full px-4 py-3 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-yellow-400 text-sm"
-                      placeholder="Ex: Válido para livros de ficção..."
+                      placeholder={newReward.type === 'book' ? 'Ex: Uma breve sinopse para apresentar o livro...' : 'Ex: Detalhes do brinde ou condição do cupom...'}
                     />
                   </div>
                 </div>
