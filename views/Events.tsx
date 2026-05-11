@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Users, Plus, Trash2, CheckCircle2, AlertCircle, Clock, ExternalLink, Info, Heart, MessageCircle, Send, X, Camera, Image as ImageIcon, Edit2 } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '../supabase';
+import { supabase, isSupabaseConfigured, uploadFile } from '../supabase';
 import { Profile, LibraryEvent as Event } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -160,23 +160,7 @@ const EventsView: React.FC<EventsViewProps> = ({ profile }) => {
     setUploadingImage(true);
     try {
       const compressedFile = await compressImage(file);
-      const fileExt = compressedFile.name?.split('.').pop() || 'jpg';
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `events/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('events')
-        .upload(filePath, compressedFile);
-
-      if (uploadError) {
-        console.error('Detalhes do erro de upload:', uploadError);
-        throw uploadError;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('events')
-        .getPublicUrl(filePath);
-
+      const publicUrl = await uploadFile('events', compressedFile);
       setNewEvent({ ...newEvent, image_url: publicUrl });
     } catch (err) {
       console.error('Erro completo no upload da imagem:', err);

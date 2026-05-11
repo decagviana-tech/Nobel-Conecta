@@ -35,8 +35,18 @@ export async function uploadFile(bucket: string, file: File): Promise<string> {
   }
 
   const fileExt = file.name?.split('.').pop() || 'jpg';
-  const fileName = `${Math.random()}.${fileExt}`;
-  const filePath = `${fileName}`;
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error('E necessario estar autenticado para enviar arquivos.');
+  }
+
+  const safeExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const randomId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const fileName = `${randomId}.${safeExt}`;
+  const filePath = `${user.id}/${fileName}`;
 
   try {
     const { error: uploadError, data } = await supabase.storage
