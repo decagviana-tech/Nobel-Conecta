@@ -691,18 +691,12 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-row items-center p-4 gap-6"
                 >
                   {reward.image_url ? (
-                    <div className={`${reward.type === 'book'
-                      ? 'w-20 h-32 sm:w-24 sm:h-36 rounded-lg shadow-[8px_10px_20px_rgba(0,0,0,0.14)] ring-1 ring-black/5'
-                      : 'w-24 h-32 sm:w-32 sm:h-40 rounded-2xl'
-                      } shrink-0 overflow-hidden relative bg-gray-900`}>
+                    <div className="w-24 h-32 sm:w-32 sm:h-40 shrink-0 overflow-visible relative bg-transparent flex items-center justify-center">
                       <img
                         src={reward.image_url}
                         alt={reward.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
                       />
-                      {reward.type === 'book' && (
-                        <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-r from-black/30 to-transparent pointer-events-none" />
-                      )}
                     </div>
                   ) : (
                     <div className={`w-24 h-32 sm:w-32 sm:h-40 shrink-0 flex flex-col items-center justify-center rounded-2xl relative overflow-hidden ${reward.type === 'discount' ? 'bg-black text-yellow-400' : 'bg-yellow-400 text-black'
@@ -957,10 +951,10 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
                   {/* Upload de Imagem */}
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">{newReward.type === 'book' ? 'Capa do Livro (Opcional)' : 'Foto do Brinde (Opcional)'}</label>
-                    <div className={`relative ${newReward.type === 'book' ? 'aspect-[2/3] w-28 rounded-lg' : 'aspect-[4/5] w-32 rounded-2xl'} mx-auto bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden group`}>
+                    <div className={`relative ${newReward.type === 'book' ? 'aspect-[2/3] w-28 rounded-lg' : 'aspect-[4/5] w-32 rounded-2xl'} mx-auto bg-white border-2 border-dashed border-gray-200 overflow-hidden group`}>
                       {newImageUrl ? (
                         <>
-                          <img src={newImageUrl} className="w-full h-full object-cover" />
+                          <img src={newImageUrl} className="w-full h-full object-contain p-1.5" />
                           <button
                             onClick={() => setNewImageUrl('')}
                             className="absolute top-3 right-3 p-1.5 bg-black/50 backdrop-blur-md text-white rounded-full hover:bg-red-500 transition-all"
