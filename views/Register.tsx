@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, UserPlus, Loader2, Info } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { getPasswordRuleMessage, isStrongPassword, translateAuthError } from '../src/utils/authErrorMessages';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -39,8 +40,8 @@ const Register: React.FC = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
+    if (!isStrongPassword(formData.password)) {
+      setError(getPasswordRuleMessage());
       setLoading(false);
       return;
     }
@@ -122,11 +123,7 @@ const Register: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Erro no registro:', err);
-      if (err.message?.includes('already registered')) {
-        setError('Este e-mail já está cadastrado. Por favor, faça login.');
-      } else {
-        setError(err.message || 'Erro ao criar conta. Verifique os dados e tente novamente.');
-      }
+      setError(translateAuthError(err.message) || 'Erro ao criar conta. Verifique os dados e tente novamente.');
       setLoading(false);
     }
   };
@@ -196,7 +193,7 @@ const Register: React.FC = () => {
               required
               type="password"
               className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
-              placeholder="Min. 6 caracteres"
+              placeholder="Min. 8, com letra maiuscula, minuscula e numero"
               value={formData.password}
               onChange={e => setFormData({...formData, password: e.target.value})}
             />

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BookOpen, KeyRound, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { getPasswordRuleMessage, isStrongPassword, translateAuthError } from '../src/utils/authErrorMessages';
 
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
@@ -15,8 +16,8 @@ const ResetPassword: React.FC = () => {
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
+    if (!isStrongPassword(password)) {
+      setError(getPasswordRuleMessage());
       return;
     }
 
@@ -47,7 +48,7 @@ const ResetPassword: React.FC = () => {
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: any) {
       console.error('Erro ao redefinir senha:', err);
-      setError(err.message || 'Erro ao redefinir senha. O link pode ter expirado.');
+      setError(translateAuthError(err.message) || 'Erro ao redefinir senha. O link pode ter expirado.');
       setLoading(false);
     }
   };
@@ -84,7 +85,7 @@ const ResetPassword: React.FC = () => {
               required
               type="password"
               className="w-full px-5 py-4 bg-gray-50 text-black border border-gray-100 rounded-2xl focus:ring-2 focus:ring-yellow-400 focus:bg-white outline-none transition-all font-bold placeholder:text-gray-300 caret-yellow-500"
-              placeholder="Mín. 6 caracteres"
+              placeholder="Min. 8, com letra maiuscula, minuscula e numero"
               value={password}
               onChange={e => setPassword(e.target.value)}
             />

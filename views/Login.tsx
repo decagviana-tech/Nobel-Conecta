@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, LogIn, Loader2, Sparkles, ShieldCheck, CheckCircle2, Users, CalendarHeart, Gift } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { translateAuthError } from '../src/utils/authErrorMessages';
 
 interface LoginProps {
   setSession?: (session: any) => void;
@@ -52,7 +53,7 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
       });
 
       if (error) {
-        setError(error.message || 'E-mail ou senha incorretos.');
+        setError(translateAuthError(error.message));
         setLoading(false);
         return;
       }
@@ -110,7 +111,7 @@ const Login: React.FC<LoginProps> = ({ setSession, setProfile }) => {
 
       setRecoverySent(true);
     } catch (err: any) {
-      setError(err.message || 'Erro ao enviar e-mail de recuperação.');
+      setError(translateAuthError(err.message));
     } finally {
       setLoading(false);
     }
