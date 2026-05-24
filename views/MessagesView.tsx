@@ -315,7 +315,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ profile }) => {
               </div>
               <div>
                 <p className="font-black text-sm text-gray-900">@{contactProfile.username}</p>
-                <p className="text-[9px] text-green-500 font-black uppercase tracking-widest">Online agora</p>
+                <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Conversa privada</p>
               </div>
             </div>
 
