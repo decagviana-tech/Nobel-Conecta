@@ -582,7 +582,12 @@ const RewardsView: React.FC<RewardsViewProps> = ({ profile }) => {
             Continue participando da comunidade para ganhar mais pontos e trocar por prêmios exclusivos!
           </p>
           <div className="mt-4 max-w-sm rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-bold leading-relaxed text-gray-300">
-            <span className="text-yellow-400 uppercase tracking-widest">Retirada:</span> prêmios físicos devem ser retirados na Nobel Petrópolis em até 7 dias após a confirmação. Cupons são de uso único e não acumulativo.
+            <p>
+              <span className="text-yellow-400 uppercase tracking-widest">Limite mensal:</span> cada leitor pode resgatar 1 premio fisico por mes. Cupons de desconto continuam liberados.
+            </p>
+            <p className="mt-2">
+              <span className="text-yellow-400 uppercase tracking-widest">Retirada:</span> premios fisicos devem ser retirados na Nobel Petropolis em ate 7 dias apos a confirmacao. Cupons sao de uso unico e nao acumulativo.
+            </p>
           </div>
         </div>
 
