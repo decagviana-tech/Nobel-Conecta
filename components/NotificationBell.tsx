@@ -30,7 +30,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ profile }) => {
       }
 
       if (isSupabaseConfigured) {
-        const intervalId = window.setInterval(fetchNotifications, 10000);
+        const intervalId = window.setInterval(fetchNotifications, 60000);
         const handleVisibilityChange = () => {
           if (document.visibilityState === 'visible') {
             fetchNotifications();

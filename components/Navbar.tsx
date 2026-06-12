@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, User, LogOut, BookOpen, ShoppingBag, Calendar, PenTool, Users, ArrowRight, Shield, MessageCircle, Gift, Bell, Ticket } from 'lucide-react';
 import NotificationBell from './NotificationBell';
@@ -16,6 +16,16 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
   const location = useLocation();
   const isAdmin = useAdmin(profile);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const handleChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+
+    setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   const MobileNavLink = ({ to, icon: Icon, label }: any) => {
     const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
@@ -68,7 +78,7 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
         </Link>
 
         <div className="absolute right-6">
-          <NotificationBell profile={profile} />
+          {isMobile ? <NotificationBell profile={profile} /> : <Bell size={22} className="text-gray-300" />}
         </div>
       </div>
 
@@ -121,7 +131,7 @@ const Navbar: React.FC<NavbarProps> = ({ profile, onLogout, isDemo }) => {
         <div className="p-3 bg-white border-t border-gray-50">
           <div className="flex items-center justify-between mb-3 px-1">
             <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Alertas</p>
-            <NotificationBell profile={profile} />
+            {isMobile ? <Bell size={20} className="text-gray-300" /> : <NotificationBell profile={profile} />}
           </div>
           <div className="flex items-center gap-2.5 mb-2 bg-gray-50/80 p-2.5 rounded-xl border border-gray-100">
             <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
